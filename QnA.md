@@ -22,3 +22,7 @@ Maybe I shouldn't really use a string library, instead I'll just store start and
 I could tokenize and parse at the same time, I guess. It's a lisp after all. Why? Less looping. Why not? Potentially uglier code.
 
 Let's try splitted first.
+
+## I can now tokenize some lisp code, including comments and strings. What should I do now?
+
+Next up comes parsing. I should probably start creating lists and stuff, that can then be evaluated.
