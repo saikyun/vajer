@@ -1,6 +1,6 @@
-# libtcc-example
+# vajer
 
-Examples of evaluating C code during runtime, using libtcc.
+Tokenize lisp.
 
 ## Installation
 
@@ -17,7 +17,7 @@ cd ..
 ## Usage
 
 ```
-make run
+make test
 ```
 
 On windows, you'll have to set up the compiler flags yourself. If you figure it out, please send a PR. :)
