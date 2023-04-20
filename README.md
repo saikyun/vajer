@@ -1,11 +1,11 @@
-# libtcc-example
+# vajer
 
-Examples of evaluating C code during runtime, using libtcc.
+Tokenize lisp.
 
 ## Installation
 
 ```
-git clone --recursive https://github.com/saikyun/libtcc-example
+git clone --recursive https://github.com/saikyun/vajer
 cd libtcc-example
 cd lib/tinycc
 ./configure
@@ -17,7 +17,7 @@ cd ..
 ## Usage
 
 ```
-make run
+make test
 ```
 
 On windows, you'll have to set up the compiler flags yourself. If you figure it out, please send a PR. :)
