@@ -92,9 +92,29 @@ MU_TEST(test_tokenize_defn)
     mu_assert(tokens[i++].type == TOKEN_CLOSE_PARENS);
 }
 
+MU_TEST(test_parse_defn)
+{
+    printf("test parse defn\n");
+    const char *code = "(defn fac [n]\n"
+                       "  (if (<= n 1337)\n"
+                       "    5\n"
+                       "    (* n (factorial (- n 1)))))";
+    Token *tokens = tokenize(code, strlen(code));
+    AST *root_nodes = parse_all(code, tokens);
+
+    for (int i = 0; i < arrlen(root_nodes); i++)
+    {
+        print_ast(&root_nodes[i]);
+    }
+}
+
 MU_TEST_SUITE(lisp_suite)
 {
+    // tokenize
     MU_RUN_TEST(test_tokenize_string);
     MU_RUN_TEST(test_tokenize_comment);
     MU_RUN_TEST(test_tokenize_defn);
+
+    // parse
+    MU_RUN_TEST(test_parse_defn);
 }

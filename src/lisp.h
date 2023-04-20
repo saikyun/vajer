@@ -18,6 +18,19 @@ typedef enum TokenType
     TOKEN_COMMENT,
 } TokenType;
 
+char *token_names[] = {
+    "(",
+    ")",
+    "[",
+    "]",
+    "\"",
+    "SYMBOL",
+    "NUMBER",
+    "WHITESPACE",
+    "NEWLINE",
+    "COMMENT",
+};
+
 typedef struct Token
 {
     TokenType type;
@@ -25,14 +38,14 @@ typedef struct Token
     int stop;
 } Token;
 
-typedef struct ParseState
+typedef struct TokenizeState
 {
     const char *code;
     int count;
     int pos;
-} ParseState;
+} TokenizeState;
 
-Token whitespace(ParseState *state)
+Token whitespace(TokenizeState *state)
 {
     int start = state->pos;
     while (state->pos < state->count && state->code[state->pos] == ' ')
@@ -40,7 +53,7 @@ Token whitespace(ParseState *state)
     return (Token){TOKEN_WHITESPACE, start, state->pos};
 }
 
-Token newline(ParseState *state)
+Token newline(TokenizeState *state)
 {
     int start = state->pos;
     while (state->pos < state->count && state->code[state->pos] == '\n')
@@ -55,7 +68,7 @@ int is_symbol(char c)
     return isalpha(c) || strchr(symbol_chars, c) != NULL;
 }
 
-Token symbol(ParseState *state)
+Token symbol(TokenizeState *state)
 {
     int start = state->pos;
     while (state->pos < state->count && is_symbol(state->code[state->pos]))
@@ -63,7 +76,7 @@ Token symbol(ParseState *state)
     return (Token){TOKEN_SYMBOL, start, state->pos};
 }
 
-Token number(ParseState *state)
+Token number(TokenizeState *state)
 {
     int start = state->pos;
     while (state->pos < state->count && isdigit(state->code[state->pos]))
@@ -71,7 +84,7 @@ Token number(ParseState *state)
     return (Token){TOKEN_NUMBER, start, state->pos};
 }
 
-Token string(ParseState *state)
+Token string(TokenizeState *state)
 {
     int start = state->pos;
     state->pos++;
@@ -102,7 +115,7 @@ Token string(ParseState *state)
     return (Token){TOKEN_STRING, start, state->pos};
 }
 
-Token comment(ParseState *state)
+Token comment(TokenizeState *state)
 {
     int start = state->pos;
     while (state->pos < state->count && state->code[state->pos] != '\n')
@@ -112,7 +125,7 @@ Token comment(ParseState *state)
 
 Token *tokenize(const char *str, int count)
 {
-    ParseState state = {str, count, 0};
+    TokenizeState state = {str, count, 0};
     Token *tokens = NULL;
 
     while (state.pos < state.count)
@@ -171,4 +184,185 @@ Token *tokenize(const char *str, int count)
     }
 
     return tokens;
+}
+
+////////////////// Parsing //////////////////////
+
+typedef enum ASTType
+{
+    AST_LIST,
+
+    AST_STRING,
+    AST_SYMBOL,
+    AST_NUMBER,
+
+    AST_EMPTY,
+} ASTType;
+
+typedef enum ListType
+{
+    LIST_PARENS,
+    LIST_BRACKETS,
+} ListType;
+
+TokenType closing_types[] = {
+    TOKEN_CLOSE_PARENS,
+    TOKEN_CLOSE_BRACKET,
+};
+
+struct Ast;
+
+typedef struct List
+{
+    ListType type;
+    struct AST *elements;
+} List;
+
+typedef struct AST
+{
+    ASTType type;
+    union Data
+    {
+        List list;
+        char *string;
+        char *symbol;
+        float number;
+    };
+} AST;
+
+typedef struct ParseState
+{
+    const char *code;
+    Token *tokens;
+    int pos;
+} ParseState;
+
+void print_ast(AST *el)
+{
+    switch (el->type)
+    {
+    case AST_SYMBOL:
+        printf("%s", el->symbol);
+        break;
+    case AST_NUMBER:
+        printf("%d", el->number);
+        break;
+    case AST_LIST:
+        if (el->list.type == LIST_PARENS)
+            printf("(");
+        else if (el->list.type == LIST_BRACKETS)
+            printf("[");
+
+        for (int i = 0; i < arrlen(el->list.elements); i++)
+        {
+            print_ast(&el->list.elements[i]);
+
+            if (i < arrlen(el->list.elements) - 1)
+            {
+                printf(" ");
+            }
+        }
+
+        if (el->list.type == LIST_PARENS)
+            printf(")");
+        else if (el->list.type == LIST_BRACKETS)
+            printf("]");
+
+        break;
+    }
+}
+
+AST parse(ParseState *state);
+
+AST parse_list(ParseState *state, ListType list_type)
+{
+    int start = state->pos;
+    state->pos++; // skip over initial opening token
+    List list = {list_type, NULL};
+
+    TokenType closing_type = closing_types[list_type];
+
+    int done = 0;
+
+    while (1)
+    {
+        if (state->pos >= arrlen(state->tokens))
+        {
+            printf("\033[0;31no closing parens:\033[0m\n");
+            assert(0);
+        }
+
+        if (state->tokens[state->pos].type == closing_type)
+        {
+            state->pos++;
+            break;
+        }
+
+        AST ast = parse(state);
+        if (ast.type != AST_EMPTY)
+        {
+            arrpush(list.elements, ast);
+        }
+    }
+
+    return (AST){AST_LIST, list};
+}
+
+AST parse(ParseState *state)
+{
+    Token token = state->tokens[state->pos];
+
+    if (token.type == TOKEN_OPEN_PARENS)
+    {
+        return parse_list(state, LIST_PARENS);
+    }
+    else if (token.type == TOKEN_OPEN_BRACKET)
+    {
+        return parse_list(state, LIST_BRACKETS);
+    }
+    else if (token.type == TOKEN_SYMBOL)
+    {
+        state->pos++;
+        int len = token.stop - token.start;
+        char *sym = (char *)malloc(sizeof(char) * len);
+        memcpy(sym, state->code + token.start * sizeof(char), len);
+        return (AST){.type = AST_SYMBOL, .symbol = sym};
+    }
+    else if (token.type == TOKEN_NUMBER)
+    {
+        state->pos++;
+        int num = 10;
+        strtol(state->code + token.start, NULL, 10);
+        printf("num: %d\n", num);
+        return (AST){.type = AST_NUMBER, .number = num};
+    }
+    else if (token.type == TOKEN_WHITESPACE || token.type == TOKEN_NEWLINE)
+    {
+        state->pos++;
+        return (AST){.type = AST_EMPTY};
+    }
+    else
+    {
+        printf("\033[0;31munhandled token type: %s\033[0m\n", token_names[token.type]);
+        assert(0);
+        // state.pos++;
+    }
+}
+
+AST *parse_all(const char *code, Token *tokens)
+{
+    ParseState state = {code, tokens, 0};
+    AST *root_nodes = NULL;
+
+    while (state.pos < arrlen(tokens))
+    {
+        printf("state pos: %d\n", state.pos);
+        AST ast = parse(&state);
+        if (ast.type != AST_EMPTY)
+        {
+            arrpush(root_nodes, ast);
+        }
+    }
+
+    return root_nodes;
 }
