@@ -41,3 +41,45 @@ Main question is if it should be heap allocated or copied around. I guess heap a
 ## I managed to parse the defn example! What now?
 
 Well, try to `eval` it! :D Which would mean compiling to C. :O
+
+* [x] Write unit test for eval
+* [x] Implement it
+* [x] Write unit test that handles more forms
+* [ ] Add gensym to CompilationState
+* [ ] Implement it
+* [ ] Probably need some ways to figure out types
+* [ ] If nothing else, try filling in the types, like `:int`
+
+I managed to do basic eval!
+
+Now I need to handle certain things though.
+
+Storing the result of if-statements, so that it can be e.g. returned or used in other expressions
+
+## How?
+
+Since the usage depends on the surrounding context, it might make sense to have some sort of handle that can be used if one wants to use the "return value". I think no code should run as an actual expression in C, or as little as possible. Better to do it in a procedural way, so I don't have to think so much about which context one is in (expression or not).
+
+For example:
+
+```
+(* (+ 10 10) 20)
+
+// should lead to code like
+
+int res = 10 + 10;
+int res2 = res * 20;
+
+// rather than
+((10 + 10) * 20)
+
+// because that will make it more compatible with e.g.
+int res;
+if (1) {
+    res = 1;
+} else {
+    res = 0;
+}
+```
+
+I'll need a gensym thing of some sort. Just an int for now.

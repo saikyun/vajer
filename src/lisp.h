@@ -221,12 +221,12 @@ typedef struct List
 typedef struct AST
 {
     ASTType type;
-    union Data
+    union
     {
         List list;
         char *string;
         char *symbol;
-        float number;
+        int number;
     };
 } AST;
 
@@ -243,6 +243,9 @@ void print_ast(AST *el)
     {
     case AST_SYMBOL:
         printf("%s", el->symbol);
+        break;
+    case AST_STRING:
+        printf("\"%s\"", el->string);
         break;
     case AST_NUMBER:
         printf("%d", el->number);
@@ -268,6 +271,8 @@ void print_ast(AST *el)
         else if (el->list.type == LIST_BRACKETS)
             printf("]");
 
+        break;
+    case AST_EMPTY:
         break;
     }
 }
@@ -324,16 +329,20 @@ AST parse(ParseState *state)
     {
         state->pos++;
         int len = token.stop - token.start;
-        char *sym = (char *)malloc(sizeof(char) * len);
+        char *sym = (char *)malloc(sizeof(char) * (len + 1));
+        sym[len] = '\0';
         memcpy(sym, state->code + token.start * sizeof(char), len);
         return (AST){.type = AST_SYMBOL, .symbol = sym};
     }
     else if (token.type == TOKEN_NUMBER)
     {
         state->pos++;
-        int num = 10;
-        strtol(state->code + token.start, NULL, 10);
-        printf("num: %d\n", num);
+        int num = 0;
+        int len = token.stop - token.start;
+        for (int i = 0; i < len; i++)
+        {
+            num += (state->code[token.stop - i - 1] - '0') * pow(10, i);
+        }
         return (AST){.type = AST_NUMBER, .number = num};
     }
     else if (token.type == TOKEN_WHITESPACE || token.type == TOKEN_NEWLINE)
@@ -356,7 +365,6 @@ AST *parse_all(const char *code, Token *tokens)
 
     while (state.pos < arrlen(tokens))
     {
-        printf("state pos: %d\n", state.pos);
         AST ast = parse(&state);
         if (ast.type != AST_EMPTY)
         {
@@ -365,4 +373,230 @@ AST *parse_all(const char *code, Token *tokens)
     }
 
     return root_nodes;
+}
+
+////////////////// Compilation //////////////////////
+
+typedef struct CompilationState
+{
+    char *source;
+    int length;
+    int capacity;
+} CompilationState;
+
+void append(CompilationState *state, char *src)
+{
+    int length = strlen(src);
+
+    while (state->capacity <= state->length + length + 1)
+    {
+        int new_cap = (state->capacity + length + 1) * 2;
+        void *res = realloc(state->source, new_cap * sizeof(char));
+        assert(res != 0);
+        state->source = res;
+        state->capacity = new_cap;
+    }
+
+    memcpy(state->source + state->length, src, length);
+    state->length += length;
+
+    assert(state->length + 1 < state->capacity);
+
+    memset(state->source + state->length + 1, '\0', 1);
+}
+
+int fac(int n)
+{
+    int res;
+    if (n <= 1)
+    {
+        res = 1;
+    }
+    else
+    {
+        res = (n * (fac(n - 1)));
+    }
+
+    return res;
+}
+
+void compile(CompilationState *state, AST node);
+
+void compile_defn(CompilationState *state, AST node)
+{
+    /*
+      should generate something like:
+      TYPE second.symbol(THIRD) {
+          REST
+      }
+      */
+    append(state, "int ");
+    AST name = node.list.elements[1];
+    assert(name.type == AST_SYMBOL);
+    append(state, name.symbol);
+    append(state, "(");
+
+    AST args = node.list.elements[2];
+    assert(args.type == AST_LIST && args.list.type == LIST_BRACKETS);
+    for (int i = 0; i < arrlen(args.list.elements); i++)
+    {
+        AST arg = args.list.elements[i];
+        assert(arg.type == AST_SYMBOL);
+        append(state, "int ");
+        append(state, arg.symbol);
+        if (i < arrlen(args.list.elements) - 1)
+            append(state, ", ");
+    }
+    append(state, ")");
+
+    // body
+    append(state, "{\n");
+
+    for (int i = 3; i < arrlen(node.list.elements); i++)
+    {
+        compile(state, node.list.elements[i]);
+    }
+
+    append(state, "return res;\n");
+
+    append(state, "}");
+}
+
+void compile_if(CompilationState *state, AST node)
+{
+    append(state, "int res;\n");
+    append(state, "if ");
+    compile(state, node.list.elements[1]);
+    append(state, " {\n");
+    append(state, "res = ");
+    compile(state, node.list.elements[2]);
+    append(state, ";\n");
+    append(state, "} else {\n");
+    for (int i = 3; i < arrlen(node.list.elements); i++)
+    {
+        if (i == arrlen(node.list.elements) - 1)
+            append(state, "res = ");
+
+        compile(state, node.list.elements[i]);
+
+        if (i == arrlen(node.list.elements) - 1)
+            append(state, ";");
+    }
+    append(state, "\n}\n\n");
+}
+
+void compile_default_call(CompilationState *state, AST node)
+{
+    AST f = node.list.elements[0];
+    assert(f.type == AST_SYMBOL);
+
+    append(state, f.symbol);
+    append(state, "(");
+
+    for (int i = 1; i < arrlen(node.list.elements); i++)
+    {
+        AST arg = node.list.elements[i];
+        compile(state, arg);
+        if (i < arrlen(node.list.elements) - 1)
+            append(state, ", ");
+    }
+
+    append(state, ")");
+}
+
+void compile_infix(CompilationState *state, AST node)
+{
+    AST f = node.list.elements[0];
+    assert(f.type == AST_SYMBOL);
+
+    append(state, "(");
+    compile(state, node.list.elements[1]);
+
+    append(state, " ");
+
+    append(state, f.symbol);
+
+    append(state, " ");
+
+    compile(state, node.list.elements[2]);
+    append(state, ")");
+}
+
+void compile_call(CompilationState *state, AST node)
+{
+    AST head = node.list.elements[0];
+    assert(head.type == AST_SYMBOL);
+    if (strcmp(head.symbol, "defn") == 0)
+    {
+        compile_defn(state, node);
+    }
+    else if (strcmp(head.symbol, "if") == 0)
+    {
+        compile_if(state, node);
+    }
+    // TODO: maybe not so hard coded
+    else if (strcmp(head.symbol, "<=") == 0 || strcmp(head.symbol, "*") == 0 || strcmp(head.symbol, "-") == 0)
+    {
+        compile_infix(state, node);
+    }
+    else
+    {
+        compile_default_call(state, node);
+        /*
+        printf("unhandled call: ");
+        print_ast(&node);
+        printf("\n\ncurrent source:\n\n%s\n\n", state->source);
+        assert(0);
+        */
+    }
+}
+
+void compile_symbol(CompilationState *state, AST node)
+{
+    append(state, node.symbol);
+}
+
+void compile_number(CompilationState *state, AST node)
+{
+    int len = snprintf(NULL, 0, "%d", node.number);
+    char *n = (char *)malloc(len + 1);
+    snprintf(n, len + 1, "%d", node.number);
+    append(state, n);
+    // TODO: figure out why runtime error when freeing here
+    // free(n);
+}
+
+void compile(CompilationState *state, AST node)
+{
+    switch (node.type)
+    {
+    case AST_LIST:
+        if (node.type == LIST_PARENS)
+        {
+            compile_call(state, node);
+        }
+        break;
+    case AST_SYMBOL:
+        compile_symbol(state, node);
+        break;
+    case AST_NUMBER:
+        compile_number(state, node);
+        break;
+    default:
+        printf("unhandled compilation: ");
+        print_ast(&node);
+        printf("\n\ncurrent source:\n\n%s\n\n", state->source);
+        assert(0);
+        break;
+    }
+}
+
+char *compile_all(AST *nodes)
+{
+    CompilationState state = {NULL, 0, 0};
+    for (int i = 0; i < arrlen(nodes); i++)
+    {
+        compile(&state, nodes[i]);
+    }
+    return state.source;
 }
