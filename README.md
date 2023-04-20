@@ -5,7 +5,7 @@ Tokenize lisp.
 ## Installation
 
 ```
-git clone --recursive https://github.com/saikyun/libtcc-example
+git clone --recursive https://github.com/saikyun/vajer
 cd libtcc-example
 cd lib/tinycc
 ./configure
