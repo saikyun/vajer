@@ -357,6 +357,13 @@ arrpush(els, ((AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .eleme
 
 It feels like the "normalization" of if-statements becomes a bit clunkier than it has to be. But I think it will work for now. I should probably settle for this for now, and try to generate C code from the new tree. :)
 
-* [ ] Write down what C code should be generated
-* [ ] Start working on some sort of test case
-* [ ] Implement `emit`
+I wonder if the `transform_if` should take the "value to set" as an argument. Like a final form of some sort... That might make sense.
+
+* [x] Write down what C code should be generated
+* [x] Start working on some sort of test case
+* [x] Implement `c_compile`
+
+Eyy, it works. And now it felt a lot easier than before.
+
+* [ ] Fill out tests with more examples (e.g. the ones that have been transformed)
+* [ ] Implement missing stuff

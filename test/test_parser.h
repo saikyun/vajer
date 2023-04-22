@@ -132,17 +132,21 @@ MU_TEST(test_transform_if)
     const char *code = "(if (zero? n) 0 1)";
     Token *tokens = tokenize(code, strlen(code));
     AST *root_nodes = parse_all(code, tokens);
+    /*
     printf("\n");
     print_ast(root_nodes);
     printf("\n");
+    */
 
     AST *transformed_nodes = c_transform_all(root_nodes);
+    /*
     printf("\n");
     for (int i = 0; i < arrlen(transformed_nodes); i++)
     {
         print_ast(&transformed_nodes[i]);
     }
     printf("\n");
+    */
 }
 
 MU_TEST(test_transform_if_do)
@@ -169,6 +173,58 @@ MU_TEST(test_transform_if_do)
     const char *code = "(if (if (if false true 1337) (= 1 1) (zero? n)) (do (print \"hello\") (+ 1 2 3)) 1)";
     Token *tokens = tokenize(code, strlen(code));
     AST *root_nodes = parse_all(code, tokens);
+    /*
+    printf("\n");
+    print_ast(root_nodes);
+    printf("\n");
+    */
+
+    AST *transformed_nodes = c_transform_all(root_nodes);
+
+    /*
+    printf("\n");
+    for (int i = 0; i < arrlen(transformed_nodes); i++)
+    {
+        print_ast(&transformed_nodes[i]);
+    }
+    printf("\n");
+    */
+}
+
+
+MU_TEST(test_compile_if)
+{
+    /*
+    ```
+    (if (zero? n) 0 1)
+    ```
+
+    to
+
+    ```
+    (do (var gensym0)
+        (if (zero? n)
+            (set gensym0 0)
+            (set gensym0 1))
+        (set gensym1 gensym0))
+    ```
+
+    to
+
+    ```
+    int gensym0;
+    if (n == 0) {
+        gensym0 = 0;
+    } else {
+        gensym0 = 1;
+    }
+    gensym1 = gensym0;
+    ```
+    */
+
+    const char *code = "(if (zero? n) 0 1)";
+    Token *tokens = tokenize(code, strlen(code));
+    AST *root_nodes = parse_all(code, tokens);
     printf("\n");
     print_ast(root_nodes);
     printf("\n");
@@ -180,7 +236,11 @@ MU_TEST(test_transform_if_do)
         print_ast(&transformed_nodes[i]);
     }
     printf("\n");
+
+    char *source = c_compile_all(transformed_nodes);
+    printf("source:\n%s\n", source);
 }
+
 
 MU_TEST_SUITE(lisp_suite)
 {
@@ -195,4 +255,7 @@ MU_TEST_SUITE(lisp_suite)
     // transform
     MU_RUN_TEST(test_transform_if);
     MU_RUN_TEST(test_transform_if_do);
+
+    // compile
+    MU_RUN_TEST(test_compile_if);
 }

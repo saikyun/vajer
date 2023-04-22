@@ -596,8 +596,149 @@ AST *c_transform_all(AST *from)
     {
         SymAST node = transform(&state, &from[i]);
         arrpush(to, node.ast);
-        printf("sym: %s\n", node.sym);
     }
 
     return to;
+}
+
+////////////////// Compile to C //////////////////////
+
+typedef struct CCompilationState
+{
+    String source;
+} CCompilationState;
+
+void c_compile(CCompilationState *state, AST node);
+
+void c_compile_if(CCompilationState *state, AST node)
+{
+    string(&state->source, "if (");
+    c_compile(state, node.list.elements[1]);
+    string(&state->source, ") {\n");
+    c_compile(state, node.list.elements[2]);
+    string(&state->source, "} else {\n");
+    c_compile(state, node.list.elements[3]);
+    string(&state->source, "}\n");
+}
+
+void c_compile_do(CCompilationState *state, AST node)
+{
+    string(&state->source, "{\n");
+    for (int i = 1; i < arrlen(node.list.elements); i++)
+    {
+        c_compile(state, node.list.elements[i]);
+    }
+    string(&state->source, "}\n");
+}
+
+void c_compile_var(CCompilationState *state, AST node)
+{
+    AST sym = node.list.elements[1];
+    assert(sym.type == AST_SYMBOL);
+    strstr(&state->source, "int ", sym.symbol, ";\n");
+}
+
+void c_compile_set(CCompilationState *state, AST node)
+{
+    AST sym = node.list.elements[1];
+    assert(sym.type == AST_SYMBOL);
+    strstr(&state->source, sym.symbol, " = ");
+    c_compile(state, node.list.elements[2]);
+    string(&state->source, ";\n");
+}
+
+void c_compile_infix(CCompilationState *state, AST left, char *f, AST right)
+{
+    c_compile(state, left);
+    string(&state->source, f);
+    c_compile(state, right);
+}
+
+void c_compile_list(CCompilationState *state, AST node)
+{
+    switch (node.list.type)
+    {
+    case LIST_PARENS:
+    {
+        AST head = node.list.elements[0];
+        assert(head.type == AST_SYMBOL);
+        if (strcmp(head.symbol, "if") == 0)
+        {
+            return c_compile_if(state, node);
+        }
+        else if (strcmp(head.symbol, "do") == 0)
+        {
+            return c_compile_do(state, node);
+        }
+        else if (strcmp(head.symbol, "var") == 0)
+        {
+            return c_compile_var(state, node);
+        }
+        else if (strcmp(head.symbol, "set") == 0)
+        {
+            return c_compile_set(state, node);
+        }
+        else if (strcmp(head.symbol, "zero?") == 0)
+        {
+            return c_compile_infix(state, node.list.elements[1], "==", (AST){.type = AST_NUMBER, .number = 0});
+        }
+        else
+        {
+            printf("unhandled head: ");
+            print_ast(&head);
+            printf("\n");
+            assert(0);
+        }
+        break;
+    }
+    default:
+        printf("unhandled list: ");
+        print_ast(&node);
+        assert(0);
+        break;
+    }
+}
+
+void c_compile(CCompilationState *state, AST node)
+{
+    switch (node.type)
+    {
+    case AST_LIST:
+    {
+        return c_compile_list(state, node);
+        break;
+    }
+    case AST_SYMBOL:
+    {
+        string(&state->source, node.symbol);
+        break;
+    }
+    case AST_NUMBER:
+    {
+        int len = snprintf(NULL, 0, "%d", node.number) + 1;
+        char *str = malloc(len * sizeof(char));
+        snprintf(str, len, "%d", node.number);
+        string(&state->source, str);
+        break;
+    }
+    default:
+        printf("unhandled: ");
+        print_ast(&node);
+        printf("\n");
+        assert(0);
+        break;
+    }
+}
+
+char *c_compile_all(AST *from)
+{
+    CCompilationState state = {};
+
+    for (int i = 0; i < arrlen(from); i++)
+    {
+        AST node = from[i];
+        c_compile(&state, node);
+    }
+
+    return state.source.str;
 }
