@@ -69,7 +69,7 @@ int is_symbol(char c)
     return isalpha(c) || strchr(symbol_chars, c) != NULL;
 }
 
-Token symbol(TokenizeState *state)
+Token token_symbol(TokenizeState *state)
 {
     int start = state->pos;
     while (state->pos < state->count && is_symbol(state->code[state->pos]))
@@ -170,7 +170,7 @@ Token *tokenize(const char *str, int count)
         }
         else if (is_symbol(c))
         {
-            arrpush(tokens, symbol(&state));
+            arrpush(tokens, token_symbol(&state));
         }
         else if (isdigit(c))
         {
@@ -389,9 +389,6 @@ AST *parse_all(const char *code, Token *tokens)
 
 typedef struct CTransformState
 {
-    AST *from;
-    AST *to;
-    int pos;
     int last_prepend_pos;
     int gensym;
 } CTransformState;
@@ -411,88 +408,99 @@ char *gensym(CTransformState *state)
     return str;
 }
 
+AST list1(AST n1)
+{
+    AST *els = NULL;
+    arrpush(els, n1);
+    return (AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
+}
+
+AST list2(AST n1, AST n2)
+{
+    AST *els = NULL;
+    arrpush(els, n1);
+    arrpush(els, n2);
+    return (AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
+}
+
+AST list3(AST n1, AST n2, AST n3)
+{
+    AST *els = NULL;
+    arrpush(els, n1);
+    arrpush(els, n2);
+    arrpush(els, n3);
+    return (AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
+}
+
+AST list4(AST n1, AST n2, AST n3, AST n4)
+{
+    AST *els = NULL;
+    arrpush(els, n1);
+    arrpush(els, n2);
+    arrpush(els, n3);
+    arrpush(els, n4);
+    return (AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
+}
+
+AST symbol(char *sym)
+{
+    return (AST){.type = AST_SYMBOL, .symbol = sym};
+}
+
 SymAST transform(CTransformState *state, AST *node);
 
 SymAST transform_if(CTransformState *state, AST *node)
 {
-    printf("transform if\n");
-    AST *els = NULL;
-    arrpush(els, ((AST){.type = AST_SYMBOL, .symbol = "do"}));
-    AST do_block = (AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
     char *sym = gensym(state);
-    AST *elements = NULL;
-    arrpush(elements, ((AST){.type = AST_SYMBOL, .symbol = "var"}));
-    arrpush(elements, ((AST){.type = AST_SYMBOL, .symbol = sym}));
-    arrpush(els,
-            ((AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = elements}}));
-    // AST *branch1 = &node->list.elements[2];
+    AST do_block = list2(symbol("do"),
+                         list2(symbol("var"), symbol(sym)));
+
+    SymAST cond = transform(state, &node->list.elements[1]);
+    if (cond.sym != NULL)
+    {
+        arrpush(do_block.list.elements,
+                list4(symbol("do"),
+                      list2(symbol("var"), symbol(cond.sym)),
+                      cond.ast,
+                      list3(symbol("set"), symbol(sym), symbol(cond.sym))));
+        node->list.elements[1] = symbol(cond.sym);
+    }
 
     SymAST branch1 = transform(state, &node->list.elements[2]);
     if (branch1.sym != NULL)
     {
-        printf("branch1 sym: %s\n", branch1.sym);
-
-        {
-            /*
-            AST *elements3 = NULL;
-            arrpush(elements3, ((AST){.type = AST_SYMBOL, .symbol = "set"}));
-            arrpush(elements3, ((AST){.type = AST_SYMBOL, .symbol = sym}));
-            arrpush(elements3, ((AST){.type = AST_SYMBOL, .symbol = branch1.sym}));
-
-            node->list.elements[2] = ((AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = elements3}});
-    */
-            AST *els = NULL;
-            arrpush(els, ((AST){.type = AST_SYMBOL, .symbol = "do"}));
-            AST do_block = (AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
-            {
-                AST *elements = NULL;
-                arrpush(elements, ((AST){.type = AST_SYMBOL, .symbol = "var"}));
-                arrpush(elements, ((AST){.type = AST_SYMBOL, .symbol = branch1.sym}));
-                arrpush(els,
-                        ((AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = elements}}));
-            }
-            arrpush(els, branch1.ast);
-            AST *elements = NULL;
-            arrpush(elements, ((AST){.type = AST_SYMBOL, .symbol = "set"}));
-            arrpush(elements, ((AST){.type = AST_SYMBOL, .symbol = sym}));
-            arrpush(elements, ((AST){.type = AST_SYMBOL, .symbol = branch1.sym}));
-            arrpush(els,
-                    ((AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = elements}}));
-            node->list.elements[2] = do_block;
-        }
+        node->list.elements[2] =
+            list4(symbol("do"),
+                  list2(symbol("var"), symbol(branch1.sym)),
+                  branch1.ast,
+                  list3(symbol("set"), symbol(sym), symbol(branch1.sym)));
     }
     else
     {
-        AST *elements = NULL;
-        arrpush(elements, ((AST){.type = AST_SYMBOL, .symbol = "set"}));
-        arrpush(elements, ((AST){.type = AST_SYMBOL, .symbol = sym}));
-        arrpush(elements, branch1.ast);
-        node->list.elements[2] =
-            ((AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = elements}});
+        node->list.elements[2] = list3(symbol("set"), symbol(sym), branch1.ast);
     }
 
-    arrpush(els, *node);
+    SymAST branch2 = transform(state, &node->list.elements[3]);
+    if (branch2.sym != NULL)
+    {
+        node->list.elements[3] =
+            list4(symbol("do"),
+                  list2(symbol("var"), symbol(branch2.sym)),
+                  branch1.ast,
+                  list3(symbol("set"), symbol(sym), symbol(branch2.sym)));
+    }
+    else
+    {
+        node->list.elements[3] = list3(symbol("set"), symbol(sym), branch2.ast);
+    }
 
-    /*
-    AST *elements2 = NULL;
-    arrpush(elements2, ((AST){.type = AST_SYMBOL, .symbol = "set"}));
-    arrpush(elements2, ((AST){.type = AST_SYMBOL, .symbol = sym}));
-    arrpush(elements2, *branch1);
-    *branch1 = ((AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = elements2}});
-    */
+    arrpush(do_block.list.elements, *node);
 
-    AST *branch2 = &node->list.elements[3];
-    AST *elements3 = NULL;
-    arrpush(elements3, ((AST){.type = AST_SYMBOL, .symbol = "set"}));
-    arrpush(elements3, ((AST){.type = AST_SYMBOL, .symbol = sym}));
-    arrpush(elements3, *branch2);
-    *branch2 = ((AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = elements3}});
-    // arrpush(state->to, *node);
+    char *ret = gensym(state);
 
-    printf("huh?\n");
-    // AST nnn = (AST){.type = AST_SYMBOL, .symbol = "HEHE"};
-    printf("returning if\n");
-    return (SymAST){.sym = sym, .ast = do_block};
+    arrpush(do_block.list.elements, list3(symbol("set"), symbol(ret), symbol(sym)));
+
+    return (SymAST){.sym = ret, .ast = do_block};
 }
 
 SymAST transform_do(CTransformState *state, AST *node)
@@ -524,7 +532,6 @@ SymAST transform_do(CTransformState *state, AST *node)
 
 SymAST transform_list(CTransformState *state, AST *node)
 {
-    printf("transform list\n");
     switch (node->list.type)
     {
     case LIST_PARENS:
@@ -540,6 +547,14 @@ SymAST transform_list(CTransformState *state, AST *node)
             return transform_do(state, node);
         }
         else if (strcmp(head.symbol, "+") == 0)
+        {
+            return (SymAST){.sym = NULL, .ast = *node};
+        }
+        else if (strcmp(head.symbol, "zero?") == 0)
+        {
+            return (SymAST){.sym = NULL, .ast = *node};
+        }
+        else if (strcmp(head.symbol, "=") == 0)
         {
             return (SymAST){.sym = NULL, .ast = *node};
         }
@@ -574,16 +589,15 @@ SymAST transform(CTransformState *state, AST *node)
 
 AST *c_transform_all(AST *from)
 {
-    CTransformState state = {.from = from};
+    CTransformState state = {};
+    AST *to = NULL;
 
-    while (state.pos < arrlen(state.from))
+    for (int i = 0; i < arrlen(from); i++)
     {
-        printf("transform pos: %d\n", state.pos);
-        SymAST node = transform(&state, &state.from[state.pos]);
-        arrpush(state.to, node.ast);
+        SymAST node = transform(&state, &from[i]);
+        arrpush(to, node.ast);
         printf("sym: %s\n", node.sym);
-        state.pos++;
     }
 
-    return state.to;
+    return to;
 }

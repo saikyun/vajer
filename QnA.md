@@ -309,3 +309,54 @@ I think it's starting to look like something now (ignoring the second case of if
 ```
 
 The code is really unwieldy atm though, so wanna try to make convenience functions for things like `do`, `var` and `set`. That ought to be pretty easy with variants of my `list`-macro though. :) It's at times like this that it would be nice if I could use macros... :P Soon!
+
+* ~~[ ] Implement `list`-macro, it should work like this one, but only be: `list(symbol("do"), list(symbol("var"), symbol(branch1.sym)))`:~~
+* ~~[ ] Implement variants like so: `do(var(branch1.sym))`~~
+* ~~[ ] Use these instead going forward~~
+
+Alternatively...
+```
+AST *elements = NULL
+arrpush(elements, var(branch1.sym));
+do(elements);
+```
+
+* Pros: Don't need varargs
+* Cons: No nesting... :(
+
+Alternatively, again:
+```
+AST do_block = list();
+arrpush(do_block.list.elements, symbol("do"));
+AST var = list();
+arrpush(var.list.elements, symbol("var"));
+arrpush(var.list.elements, symbol(branch1.sym));
+arrpush(do_block.list.elements, var);
+```
+
+Alternatively:
+```
+list2(symbol("do"), list2(symbol("var"), symbol(branch1.sym)));
+```
+^ pretty clean and helps with most important cases. Very easy to implement
+
+* [x] Implement list1-4, symbol
+
+```
+AST *els = NULL;
+arrpush(els, ((AST){.type = AST_SYMBOL, .symbol = "do"}));
+AST do_block = (AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
+
+AST *elements = NULL;
+arrpush(elements, ((AST){.type = AST_SYMBOL, .symbol = "var"}));
+arrpush(elements, ((AST){.type = AST_SYMBOL, .symbol = branch1.sym}));
+arrpush(els, ((AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = elements}}));
+```
+
+----------
+
+It feels like the "normalization" of if-statements becomes a bit clunkier than it has to be. But I think it will work for now. I should probably settle for this for now, and try to generate C code from the new tree. :)
+
+* [ ] Write down what C code should be generated
+* [ ] Start working on some sort of test case
+* [ ] Implement `emit`

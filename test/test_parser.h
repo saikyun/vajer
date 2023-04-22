@@ -166,7 +166,7 @@ MU_TEST(test_transform_if_do)
     ```
     */
 
-    const char *code = "(if (zero? n) (do (print \"hello\") (+ 1 2 3)) 1)";
+    const char *code = "(if (if (if false true 1337) (= 1 1) (zero? n)) (do (print \"hello\") (+ 1 2 3)) 1)";
     Token *tokens = tokenize(code, strlen(code));
     AST *root_nodes = parse_all(code, tokens);
     printf("\n");
