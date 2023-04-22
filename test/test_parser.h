@@ -112,47 +112,74 @@ MU_TEST(test_parse_defn)
     mu_assert(root_nodes[0].type == AST_LIST);
 }
 
-MU_TEST(test_eval_defn)
+MU_TEST(test_transform_if)
 {
-    const char *code = "(defn fac [n]\n"
-                       "  (if (<= n 1)\n"
-                       "    1\n"
-                       "    (* n (fac (- n 1)))))";
+    /*
+    ```
+    [(if (zero? n) 0 1)]
+    ```
+
+    to
+
+    ```
+    [(var res)
+     (if (zero? n) (set res 0) (set res 1))
+     # res somehow accessible, like getting an expr back from compile
+     ]
+    ```
+    */
+
+    const char *code = "(if (zero? n) 0 1)";
     Token *tokens = tokenize(code, strlen(code));
     AST *root_nodes = parse_all(code, tokens);
-    char *source = compile_all(root_nodes);
+    printf("\n");
+    print_ast(root_nodes);
+    printf("\n");
 
-    printf("source:\n\n\"%s\"\n\n", source);
-
-    TCCState *state = tcc_new();
-    tcc_set_output_type(state, TCC_OUTPUT_MEMORY);
-    assert(tcc_compile_string(state, source) != -1);
-    
-    int size = tcc_relocate(state, NULL);
-    assert(size != -1);
-    void *mem = malloc(size);
-    tcc_relocate(state, mem);
-    
-    int (*fac)(int) = tcc_get_symbol(state, "fac");
-    assert(add != NULL);
-    printf("fac(5): %d\n", fac(5));
-    mu_assert(fac(5) == 120);
+    AST *transformed_nodes = c_transform_all(root_nodes);
+    printf("\n");
+    for (int i = 0; i < arrlen(transformed_nodes); i++)
+    {
+        print_ast(&transformed_nodes[i]);
+    }
+    printf("\n");
 }
 
-MU_TEST(test_eval_defn_with_more_stuff)
+MU_TEST(test_transform_if_do)
 {
-    const char *code = "(defn fac [n]\n"
-                       "  (if (<= n 1)\n"
-                       "    (if (= n 0) 0 1)\n"
-                       "    (* n (fac (- n 1))))\n"
-                       "  (if (<= n 1)\n"
-                       "    1\n"
-                       "    (* n (fac (- n 1)))))";
+    /*
+    ```
+    (if (zero? n) (do (print "hello") (+ 1 2 3)) 1)
+    ```
+
+    to
+
+    ```
+    [(var res)
+     (if (zero? n)
+       (do (print "hello")
+           (def res2 (+ 1 2 3))
+           (set res res2))
+        (set res 1))
+     # res somehow accessible, like getting an expr back from compile
+     ]
+    ```
+    */
+
+    const char *code = "(if (zero? n) (do (print \"hello\") (+ 1 2 3)) 1)";
     Token *tokens = tokenize(code, strlen(code));
     AST *root_nodes = parse_all(code, tokens);
-    char *source = compile_all(root_nodes);
+    printf("\n");
+    print_ast(root_nodes);
+    printf("\n");
 
-    printf("source:\n\n\"%s\"\n\n", source);
+    AST *transformed_nodes = c_transform_all(root_nodes);
+    printf("\n");
+    for (int i = 0; i < arrlen(transformed_nodes); i++)
+    {
+        print_ast(&transformed_nodes[i]);
+    }
+    printf("\n");
 }
 
 MU_TEST_SUITE(lisp_suite)
@@ -165,7 +192,7 @@ MU_TEST_SUITE(lisp_suite)
     // parse
     MU_RUN_TEST(test_parse_defn);
 
-    // eval
-    MU_RUN_TEST(test_eval_defn);
-    MU_RUN_TEST(test_eval_defn_with_more_stuff);
+    // transform
+    MU_RUN_TEST(test_transform_if);
+    MU_RUN_TEST(test_transform_if_do);
 }

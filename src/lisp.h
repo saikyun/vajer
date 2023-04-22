@@ -1,6 +1,7 @@
 #include <ctype.h>
 #define STB_DS_IMPLEMENTATION
 #include "stb_ds.h"
+#include "sai_string.h"
 
 typedef enum TokenType
 {
@@ -61,7 +62,7 @@ Token newline(TokenizeState *state)
     return (Token){TOKEN_NEWLINE, start, state->pos};
 }
 
-const char *symbol_chars = "<=*-";
+const char *symbol_chars = "<=*-?+";
 
 int is_symbol(char c)
 {
@@ -84,7 +85,7 @@ Token number(TokenizeState *state)
     return (Token){TOKEN_NUMBER, start, state->pos};
 }
 
-Token string(TokenizeState *state)
+Token token_string(TokenizeState *state)
 {
     int start = state->pos;
     state->pos++;
@@ -161,7 +162,7 @@ Token *tokenize(const char *str, int count)
         }
         else if (c == '"')
         {
-            arrpush(tokens, string(&state));
+            arrpush(tokens, token_string(&state));
         }
         else if (c == '\n')
         {
@@ -293,7 +294,7 @@ AST parse_list(ParseState *state, ListType list_type)
     {
         if (state->pos >= arrlen(state->tokens))
         {
-            printf("\033[0;31no closing parens:\033[0m\n");
+            printf("\033[0;31mno closing parens:\033[0m\n");
             assert(0);
         }
 
@@ -331,8 +332,17 @@ AST parse(ParseState *state)
         int len = token.stop - token.start;
         char *sym = (char *)malloc(sizeof(char) * (len + 1));
         sym[len] = '\0';
-        memcpy(sym, state->code + token.start * sizeof(char), len);
+        memcpy(sym, state->code + token.start, len);
         return (AST){.type = AST_SYMBOL, .symbol = sym};
+    }
+    else if (token.type == TOKEN_STRING)
+    {
+        state->pos++;
+        int len = token.stop - 1 - (token.start + 1);
+        char *str = (char *)malloc(sizeof(char) * (len + 1));
+        str[len] = '\0';
+        memcpy(str, state->code + token.start + 1, len);
+        return (AST){.type = AST_STRING, .symbol = str};
     }
     else if (token.type == TOKEN_NUMBER)
     {
@@ -375,228 +385,205 @@ AST *parse_all(const char *code, Token *tokens)
     return root_nodes;
 }
 
-////////////////// Compilation //////////////////////
+////////////////// Transform to C //////////////////////
 
-typedef struct CompilationState
+typedef struct CTransformState
 {
-    char *source;
-    int length;
-    int capacity;
-} CompilationState;
+    AST *from;
+    AST *to;
+    int pos;
+    int last_prepend_pos;
+    int gensym;
+} CTransformState;
 
-void append(CompilationState *state, char *src)
+typedef struct SymAST
 {
-    int length = strlen(src);
+    char *sym;
+    AST ast;
+} SymAST;
 
-    while (state->capacity <= state->length + length + 1)
-    {
-        int new_cap = (state->capacity + length + 1) * 2;
-        void *res = realloc(state->source, new_cap * sizeof(char));
-        assert(res != 0);
-        state->source = res;
-        state->capacity = new_cap;
-    }
-
-    memcpy(state->source + state->length, src, length);
-    state->length += length;
-
-    assert(state->length + 1 < state->capacity);
-
-    memset(state->source + state->length + 1, '\0', 1);
+char *gensym(CTransformState *state)
+{
+    int len = snprintf(NULL, 0, "%d", state->gensym) + 6 + 1;
+    char *str = malloc(len * sizeof(char));
+    snprintf(str, len, "gensym%d", state->gensym);
+    state->gensym++;
+    return str;
 }
 
-int fac(int n)
+SymAST transform(CTransformState *state, AST *node);
+
+SymAST transform_if(CTransformState *state, AST *node)
 {
-    int res;
-    if (n <= 1)
+    printf("transform if\n");
+    AST *els = NULL;
+    arrpush(els, ((AST){.type = AST_SYMBOL, .symbol = "do"}));
+    AST do_block = (AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
+    char *sym = gensym(state);
+    AST *elements = NULL;
+    arrpush(elements, ((AST){.type = AST_SYMBOL, .symbol = "var"}));
+    arrpush(elements, ((AST){.type = AST_SYMBOL, .symbol = sym}));
+    arrpush(els,
+            ((AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = elements}}));
+    // AST *branch1 = &node->list.elements[2];
+
+    SymAST branch1 = transform(state, &node->list.elements[2]);
+    if (branch1.sym != NULL)
     {
-        res = 1;
-    }
-    else
-    {
-        res = (n * (fac(n - 1)));
-    }
+        printf("branch1 sym: %s\n", branch1.sym);
 
-    return res;
-}
-
-void compile(CompilationState *state, AST node);
-
-void compile_defn(CompilationState *state, AST node)
-{
-    /*
-      should generate something like:
-      TYPE second.symbol(THIRD) {
-          REST
-      }
-      */
-    append(state, "int ");
-    AST name = node.list.elements[1];
-    assert(name.type == AST_SYMBOL);
-    append(state, name.symbol);
-    append(state, "(");
-
-    AST args = node.list.elements[2];
-    assert(args.type == AST_LIST && args.list.type == LIST_BRACKETS);
-    for (int i = 0; i < arrlen(args.list.elements); i++)
-    {
-        AST arg = args.list.elements[i];
-        assert(arg.type == AST_SYMBOL);
-        append(state, "int ");
-        append(state, arg.symbol);
-        if (i < arrlen(args.list.elements) - 1)
-            append(state, ", ");
-    }
-    append(state, ")");
-
-    // body
-    append(state, "{\n");
-
-    for (int i = 3; i < arrlen(node.list.elements); i++)
-    {
-        compile(state, node.list.elements[i]);
-    }
-
-    append(state, "return res;\n");
-
-    append(state, "}");
-}
-
-void compile_if(CompilationState *state, AST node)
-{
-    append(state, "int res;\n");
-    append(state, "if ");
-    compile(state, node.list.elements[1]);
-    append(state, " {\n");
-    append(state, "res = ");
-    compile(state, node.list.elements[2]);
-    append(state, ";\n");
-    append(state, "} else {\n");
-    for (int i = 3; i < arrlen(node.list.elements); i++)
-    {
-        if (i == arrlen(node.list.elements) - 1)
-            append(state, "res = ");
-
-        compile(state, node.list.elements[i]);
-
-        if (i == arrlen(node.list.elements) - 1)
-            append(state, ";");
-    }
-    append(state, "\n}\n\n");
-}
-
-void compile_default_call(CompilationState *state, AST node)
-{
-    AST f = node.list.elements[0];
-    assert(f.type == AST_SYMBOL);
-
-    append(state, f.symbol);
-    append(state, "(");
-
-    for (int i = 1; i < arrlen(node.list.elements); i++)
-    {
-        AST arg = node.list.elements[i];
-        compile(state, arg);
-        if (i < arrlen(node.list.elements) - 1)
-            append(state, ", ");
-    }
-
-    append(state, ")");
-}
-
-void compile_infix(CompilationState *state, AST node)
-{
-    AST f = node.list.elements[0];
-    assert(f.type == AST_SYMBOL);
-
-    append(state, "(");
-    compile(state, node.list.elements[1]);
-
-    append(state, " ");
-
-    append(state, f.symbol);
-
-    append(state, " ");
-
-    compile(state, node.list.elements[2]);
-    append(state, ")");
-}
-
-void compile_call(CompilationState *state, AST node)
-{
-    AST head = node.list.elements[0];
-    assert(head.type == AST_SYMBOL);
-    if (strcmp(head.symbol, "defn") == 0)
-    {
-        compile_defn(state, node);
-    }
-    else if (strcmp(head.symbol, "if") == 0)
-    {
-        compile_if(state, node);
-    }
-    // TODO: maybe not so hard coded
-    else if (strcmp(head.symbol, "<=") == 0 || strcmp(head.symbol, "*") == 0 || strcmp(head.symbol, "-") == 0)
-    {
-        compile_infix(state, node);
-    }
-    else
-    {
-        compile_default_call(state, node);
-        /*
-        printf("unhandled call: ");
-        print_ast(&node);
-        printf("\n\ncurrent source:\n\n%s\n\n", state->source);
-        assert(0);
-        */
-    }
-}
-
-void compile_symbol(CompilationState *state, AST node)
-{
-    append(state, node.symbol);
-}
-
-void compile_number(CompilationState *state, AST node)
-{
-    int len = snprintf(NULL, 0, "%d", node.number);
-    char *n = (char *)malloc(len + 1);
-    snprintf(n, len + 1, "%d", node.number);
-    append(state, n);
-    // TODO: figure out why runtime error when freeing here
-    // free(n);
-}
-
-void compile(CompilationState *state, AST node)
-{
-    switch (node.type)
-    {
-    case AST_LIST:
-        if (node.type == LIST_PARENS)
         {
-            compile_call(state, node);
+            /*
+            AST *elements3 = NULL;
+            arrpush(elements3, ((AST){.type = AST_SYMBOL, .symbol = "set"}));
+            arrpush(elements3, ((AST){.type = AST_SYMBOL, .symbol = sym}));
+            arrpush(elements3, ((AST){.type = AST_SYMBOL, .symbol = branch1.sym}));
+
+            node->list.elements[2] = ((AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = elements3}});
+    */
+            AST *els = NULL;
+            arrpush(els, ((AST){.type = AST_SYMBOL, .symbol = "do"}));
+            AST do_block = (AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
+            {
+                AST *elements = NULL;
+                arrpush(elements, ((AST){.type = AST_SYMBOL, .symbol = "var"}));
+                arrpush(elements, ((AST){.type = AST_SYMBOL, .symbol = branch1.sym}));
+                arrpush(els,
+                        ((AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = elements}}));
+            }
+            arrpush(els, branch1.ast);
+            AST *elements = NULL;
+            arrpush(elements, ((AST){.type = AST_SYMBOL, .symbol = "set"}));
+            arrpush(elements, ((AST){.type = AST_SYMBOL, .symbol = sym}));
+            arrpush(elements, ((AST){.type = AST_SYMBOL, .symbol = branch1.sym}));
+            arrpush(els,
+                    ((AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = elements}}));
+            node->list.elements[2] = do_block;
+        }
+    }
+    else
+    {
+        AST *elements = NULL;
+        arrpush(elements, ((AST){.type = AST_SYMBOL, .symbol = "set"}));
+        arrpush(elements, ((AST){.type = AST_SYMBOL, .symbol = sym}));
+        arrpush(elements, branch1.ast);
+        node->list.elements[2] =
+            ((AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = elements}});
+    }
+
+    arrpush(els, *node);
+
+    /*
+    AST *elements2 = NULL;
+    arrpush(elements2, ((AST){.type = AST_SYMBOL, .symbol = "set"}));
+    arrpush(elements2, ((AST){.type = AST_SYMBOL, .symbol = sym}));
+    arrpush(elements2, *branch1);
+    *branch1 = ((AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = elements2}});
+    */
+
+    AST *branch2 = &node->list.elements[3];
+    AST *elements3 = NULL;
+    arrpush(elements3, ((AST){.type = AST_SYMBOL, .symbol = "set"}));
+    arrpush(elements3, ((AST){.type = AST_SYMBOL, .symbol = sym}));
+    arrpush(elements3, *branch2);
+    *branch2 = ((AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = elements3}});
+    // arrpush(state->to, *node);
+
+    printf("huh?\n");
+    // AST nnn = (AST){.type = AST_SYMBOL, .symbol = "HEHE"};
+    printf("returning if\n");
+    return (SymAST){.sym = sym, .ast = do_block};
+}
+
+SymAST transform_do(CTransformState *state, AST *node)
+{
+    char *sym = gensym(state);
+
+    AST last = arrlast(node->list.elements);
+
+    SymAST res = transform(state, &last);
+
+    AST *elements3 = NULL;
+    arrpush(elements3, ((AST){.type = AST_SYMBOL, .symbol = "set"}));
+    arrpush(elements3, ((AST){.type = AST_SYMBOL, .symbol = sym}));
+    if (res.sym == NULL)
+    {
+        arrpop(node->list.elements);
+        arrpush(elements3, res.ast);
+    }
+    else
+    {
+        arrpush(elements3, ((AST){.type = AST_SYMBOL, .symbol = res.sym}));
+    }
+    AST branch2 = ((AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = elements3}});
+
+    arrpush(node->list.elements, branch2);
+
+    return (SymAST){.sym = sym, .ast = *node};
+}
+
+SymAST transform_list(CTransformState *state, AST *node)
+{
+    printf("transform list\n");
+    switch (node->list.type)
+    {
+    case LIST_PARENS:
+    {
+        AST head = node->list.elements[0];
+        assert(head.type == AST_SYMBOL);
+        if (strcmp(head.symbol, "if") == 0)
+        {
+            return transform_if(state, node);
+        }
+        else if (strcmp(head.symbol, "do") == 0)
+        {
+            return transform_do(state, node);
+        }
+        else if (strcmp(head.symbol, "+") == 0)
+        {
+            return (SymAST){.sym = NULL, .ast = *node};
+        }
+        else
+        {
+            printf("unhandled symbol: %s\n", head.symbol);
+            assert(0);
         }
         break;
-    case AST_SYMBOL:
-        compile_symbol(state, node);
-        break;
-    case AST_NUMBER:
-        compile_number(state, node);
-        break;
+    }
     default:
-        printf("unhandled compilation: ");
-        print_ast(&node);
-        printf("\n\ncurrent source:\n\n%s\n\n", state->source);
         assert(0);
         break;
     }
 }
 
-char *compile_all(AST *nodes)
+SymAST transform(CTransformState *state, AST *node)
 {
-    CompilationState state = {NULL, 0, 0};
-    for (int i = 0; i < arrlen(nodes); i++)
+    switch (node->type)
     {
-        compile(&state, nodes[i]);
+    case AST_LIST:
+    {
+        return transform_list(state, node);
+        break;
     }
-    return state.source;
+    default:
+        // arrpush(state->to, *node);
+        return (SymAST){.sym = NULL, .ast = *node};
+        break;
+    }
+}
+
+AST *c_transform_all(AST *from)
+{
+    CTransformState state = {.from = from};
+
+    while (state.pos < arrlen(state.from))
+    {
+        printf("transform pos: %d\n", state.pos);
+        SymAST node = transform(&state, &state.from[state.pos]);
+        arrpush(state.to, node.ast);
+        printf("sym: %s\n", node.sym);
+        state.pos++;
+    }
+
+    return state.to;
 }
