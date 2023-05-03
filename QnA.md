@@ -366,5 +366,58 @@ I wonder if the `transform_if` should take the "value to set" as an argument. Li
 Eyy, it works. And now it felt a lot easier than before.
 
 * [x] Fill out tests with more examples (factorial)
-* [ ] Implement missing stuff
-    * [ ] Fix funcall.
+* [x] Implement missing stuff
+    * [x] Fix funcall
+
+-------------
+
+After a long break I managed to get back to the project. Added some nice emitting, thanks to indentation. Also fixed semicolons, and function calls. Now compiling and running the `fac` function works as expected. :)
+
+There are still things to do though, off the top of my head:
+
+* Types (right now only `int` is supported)
+* While-loops
+* Structs
+
+---------------
+
+Gonna try explicit types.
+
+```
+(defn str-num-printer [str :string num :int]
+  (printf "str: %s, num: %d" str num))
+```
+
+Currently getting:
+
+```
+int str-num-printer(str:stringnum:int) {
+  return printf("str: %s, num: %d", str, num);
+}
+```
+
+Problems:
+* [x] - to _
+* [x] void should have no return
+* [x] comma separated args
+* [x] types should be handled properly, perhaps in c-ast as `(char *str)`
+
+Yay, now it can build with some basic types!
+
+```
+(defn strlen-plus-n
+  [str :string num :int] :int
+  (+ num (strlen str)))
+
+# to
+
+(defn strlen_plus_n
+  [(:string str) (:int num)] :int
+  (return (+ num (strlen str))))
+
+# to
+
+int strlen_plus_n(char* str, int num) {
+  return num + strlen(str);
+}
+```
