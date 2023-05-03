@@ -365,5 +365,6 @@ I wonder if the `transform_if` should take the "value to set" as an argument. Li
 
 Eyy, it works. And now it felt a lot easier than before.
 
-* [ ] Fill out tests with more examples (e.g. the ones that have been transformed)
+* [x] Fill out tests with more examples (factorial)
 * [ ] Implement missing stuff
+    * [ ] Fix funcall.

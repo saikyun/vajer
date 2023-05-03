@@ -36,7 +36,7 @@ MU_TEST(test_tokenize_defn)
     const char *code = "(defn fac [n]\n"
                        "  (if (<= n 1)\n"
                        "    1\n"
-                       "    (* n (factorial (- n 1)))))";
+                       "    (* n (fac (- n 1)))))";
     Token *tokens = tokenize(code, strlen(code));
     int i = 0;
 
@@ -70,7 +70,7 @@ MU_TEST(test_tokenize_defn)
     mu_assert(tokens[i++].type == TOKEN_NUMBER);
     mu_assert(tokens[i++].type == TOKEN_NEWLINE);
 
-    // "    (* n (factorial (- n 1)))))";
+    // "    (* n (fac (- n 1)))))";
     mu_assert(tokens[i++].type == TOKEN_WHITESPACE);
     mu_assert(tokens[i++].type == TOKEN_OPEN_PARENS);
     mu_assert(tokens[i++].type == TOKEN_SYMBOL);
@@ -98,7 +98,7 @@ MU_TEST(test_parse_defn)
     const char *code = "(defn fac [n]\n"
                        "  (if (<= n 1337)\n"
                        "    5\n"
-                       "    (* n (factorial (- n 1)))))";
+                       "    (* n (fac (- n 1)))))";
     Token *tokens = tokenize(code, strlen(code));
     AST *root_nodes = parse_all(code, tokens);
 
@@ -225,6 +225,141 @@ MU_TEST(test_compile_if)
     const char *code = "(if (zero? n) 0 1)";
     Token *tokens = tokenize(code, strlen(code));
     AST *root_nodes = parse_all(code, tokens);
+    /*
+    printf("\n");
+    print_ast(root_nodes);
+    printf("\n");
+    */
+
+    AST *transformed_nodes = c_transform_all(root_nodes);
+    /*
+    printf("\n");
+    for (int i = 0; i < arrlen(transformed_nodes); i++)
+    {
+        print_ast(&transformed_nodes[i]);
+    }
+    printf("\n");
+    */
+
+    char *source = c_compile_all(transformed_nodes);
+    // printf("source:\n%s\n", source);
+}
+
+
+MU_TEST(test_compile_defn)
+{
+    /*
+    (defn fac [n]
+      (if (<= n 1337)
+        5
+        (* n (fac (- n 1)))))
+    ```
+
+    to
+
+    ```
+    (defn fac [n]
+      (var gensym0)
+      (if (<= n 1337)
+        (set gensym0 5)
+        (set gensym0 (* n (fac (- n 1)))))
+      (return gensym0))
+    ```
+
+    to
+
+    ```
+    int fac(n) {
+        int res;
+        if (n <= 1337) {
+            res = 5;
+        } else {
+            res = (n * fac(n - 1));
+        }
+        return res;
+    }
+    ```
+    */
+
+    const char *code = "(defn fac [n]\n"
+                       "  (if (<= n 1)\n"
+                       "    1\n"
+                       "    (* n (fac (- n 1)))))";
+    Token *tokens = tokenize(code, strlen(code));
+    AST *root_nodes = parse_all(code, tokens);
+    printf("\n");
+    print_ast(root_nodes);
+    printf("\n");
+
+    AST *transformed_nodes = c_transform_all(root_nodes);
+    printf("\n");
+    for (int i = 0; i < arrlen(transformed_nodes); i++)
+    {
+        print_ast(&transformed_nodes[i]);
+    }
+    printf("\n");
+
+    char *source = c_compile_all(transformed_nodes);
+    printf("source:\n%s\n", source);
+
+    TCCState *s = tcc_new();
+    tcc_set_output_type(s, TCC_OUTPUT_MEMORY);
+
+    mu_assert(tcc_compile_string(s, source) != -1);
+
+    int size = tcc_relocate(s, NULL);
+    mu_assert(size != -1);
+    void *mem = malloc(size);
+    tcc_relocate(s, mem);
+
+    int (*fac)(int) = tcc_get_symbol(s, "fac");
+    mu_assert(fac != NULL);
+    printf("fac(5): %d\n", fac(5));
+    mu_assert(fac(5) == 120);
+}
+
+
+MU_TEST(test_compile_expr_in_expr)
+{
+    /*
+    (defn fac [n]
+      (if (<= n 1337)
+        5
+        (* n (fac (- n 1)))))
+    ```
+
+    to
+
+    ```
+    (defn fac [n]
+      (var gensym0)
+      (if (<= n 1337)
+        (set gensym0 5)
+        (set gensym0 (* n (fac (- n 1)))))
+      (return gensym0))
+    ```
+
+    to
+
+    ```
+    int fac(n) {
+        int res;
+        if (n <= 1337) {
+            res = 5;
+        } else {
+            res = (n * fac(n - 1));
+        }
+        return res;
+    }
+    ```
+    */
+
+    const char *code = "(defn fac [n]\n"
+                       "  (if (<= n 1337)\n"
+                       "    5\n"
+                       "    (* n (fac (- n 1)))))";
+    Token *tokens = tokenize(code, strlen(code));
+    AST *root_nodes = parse_all(code, tokens);
     printf("\n");
     print_ast(root_nodes);
     printf("\n");
@@ -240,7 +375,6 @@ MU_TEST(test_compile_if)
     char *source = c_compile_all(transformed_nodes);
     printf("source:\n%s\n", source);
 }
-
 
 MU_TEST_SUITE(lisp_suite)
 {
@@ -258,4 +392,5 @@ MU_TEST_SUITE(lisp_suite)
 
     // compile
     MU_RUN_TEST(test_compile_if);
+    MU_RUN_TEST(test_compile_defn);
 }

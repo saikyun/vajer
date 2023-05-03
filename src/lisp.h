@@ -229,6 +229,7 @@ typedef struct AST
         char *symbol;
         int number;
     };
+    int no_semicolon;
 } AST;
 
 typedef struct ParseState
@@ -275,6 +276,9 @@ void print_ast(AST *el)
         break;
     case AST_EMPTY:
         break;
+    default:
+        printf("unhandled print: %d\n", el->type);
+        assert(0);
     }
 }
 
@@ -494,11 +498,14 @@ SymAST transform_if(CTransformState *state, AST *node)
         node->list.elements[3] = list3(symbol("set"), symbol(sym), branch2.ast);
     }
 
+    node->no_semicolon = 1;
     arrpush(do_block.list.elements, *node);
 
     char *ret = gensym(state);
 
     arrpush(do_block.list.elements, list3(symbol("set"), symbol(ret), symbol(sym)));
+
+    do_block.no_semicolon = 1;
 
     return (SymAST){.sym = ret, .ast = do_block};
 }
@@ -511,23 +518,54 @@ SymAST transform_do(CTransformState *state, AST *node)
 
     SymAST res = transform(state, &last);
 
-    AST *elements3 = NULL;
-    arrpush(elements3, ((AST){.type = AST_SYMBOL, .symbol = "set"}));
-    arrpush(elements3, ((AST){.type = AST_SYMBOL, .symbol = sym}));
     if (res.sym == NULL)
     {
         arrpop(node->list.elements);
-        arrpush(elements3, res.ast);
+        arrpush(node->list.elements, list3(symbol("set"), symbol(sym), res.ast));
     }
     else
     {
-        arrpush(elements3, ((AST){.type = AST_SYMBOL, .symbol = res.sym}));
+        arrpush(node->list.elements, list3(symbol("set"), symbol(sym), symbol(res.sym)));
     }
-    AST branch2 = ((AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = elements3}});
 
-    arrpush(node->list.elements, branch2);
+    node->no_semicolon = 1;
 
     return (SymAST){.sym = sym, .ast = *node};
+}
+
+SymAST transform_defn(CTransformState *state, AST *node)
+{
+    char *ressym = NULL;
+
+    for (int i = 0; i < arrlen(node->list.elements); i++)
+    {
+        SymAST res = transform(state, &node->list.elements[i]);
+        node->list.elements[i] = res.ast;
+
+        if (i == arrlen(node->list.elements) - 1)
+        {
+            ressym = res.sym;
+            if (res.sym == NULL)
+            {
+                arrpop(node->list.elements);
+                arrpush(node->list.elements, list2(symbol("return"), res.ast));
+            }
+            else
+            {
+                arrpush(node->list.elements, list2(symbol("return"), symbol(res.sym)));
+            }
+
+            // adding to the list causes loop to keep going, so we break
+            break;
+        }
+    }
+
+    if (ressym)
+    {
+        arrins(node->list.elements, 3, list2(symbol("var"), symbol(ressym)));
+    }
+
+    return (SymAST){.sym = node->list.elements[1].symbol, .ast = *node};
 }
 
 SymAST transform_list(CTransformState *state, AST *node)
@@ -554,15 +592,24 @@ SymAST transform_list(CTransformState *state, AST *node)
         {
             return (SymAST){.sym = NULL, .ast = *node};
         }
-        else if (strcmp(head.symbol, "=") == 0)
+        else if (strcmp(head.symbol, "=") == 0 || strcmp(head.symbol, "<=") == 0 || strcmp(head.symbol, "*") == 0 || strcmp(head.symbol, "return") == 0)
         {
             return (SymAST){.sym = NULL, .ast = *node};
+        }
+        else if (strcmp(head.symbol, "defn") == 0)
+        {
+            return transform_defn(state, node);
         }
         else
         {
             printf("unhandled symbol: %s\n", head.symbol);
             assert(0);
         }
+        break;
+    }
+    case LIST_BRACKETS:
+    {
+        return (SymAST){.sym = NULL, .ast = *node};
         break;
     }
     default:
@@ -606,19 +653,44 @@ AST *c_transform_all(AST *from)
 typedef struct CCompilationState
 {
     String source;
+    int indent;
 } CCompilationState;
 
 void c_compile(CCompilationState *state, AST node);
+
+void c_compile_indentation(CCompilationState *state)
+{
+    for (int i = 0; i < state->indent; i++)
+    {
+        string(&state->source, " ");
+    }
+}
+
+void c_compile_in_block(CCompilationState *state, AST node)
+{
+    state->indent += 2;
+    c_compile_indentation(state);
+    c_compile(state, node);
+
+    if (node.no_semicolon == 0)
+    {
+        string(&state->source, ";");
+    }
+    string(&state->source, "\n");
+    state->indent -= 2;
+}
 
 void c_compile_if(CCompilationState *state, AST node)
 {
     string(&state->source, "if (");
     c_compile(state, node.list.elements[1]);
     string(&state->source, ") {\n");
-    c_compile(state, node.list.elements[2]);
+    c_compile_in_block(state, node.list.elements[2]);
+    c_compile_indentation(state);
     string(&state->source, "} else {\n");
-    c_compile(state, node.list.elements[3]);
-    string(&state->source, "}\n");
+    c_compile_in_block(state, node.list.elements[3]);
+    c_compile_indentation(state);
+    string(&state->source, "}");
 }
 
 void c_compile_do(CCompilationState *state, AST node)
@@ -626,16 +698,67 @@ void c_compile_do(CCompilationState *state, AST node)
     string(&state->source, "{\n");
     for (int i = 1; i < arrlen(node.list.elements); i++)
     {
-        c_compile(state, node.list.elements[i]);
+        c_compile_in_block(state, node.list.elements[i]);
+    }
+    c_compile_indentation(state);
+    string(&state->source, "}");
+}
+
+void c_compile_defn(CCompilationState *state, AST node)
+{
+    strstr(&state->source, "int ", node.list.elements[1].symbol, "(");
+
+    AST args = node.list.elements[2];
+
+    for (int i = 0; i < arrlen(args.list.elements); i++)
+    {
+        c_compile(state, args.list.elements[i]);
+    }
+
+    string(&state->source, ") {\n");
+    for (int i = 3; i < arrlen(node.list.elements); i++)
+    {
+        c_compile_in_block(state, node.list.elements[i]);
     }
     string(&state->source, "}\n");
+}
+
+void c_compile_funcall(CCompilationState *state, AST node)
+{
+    strstr(&state->source, node.list.elements[0].symbol, "(");
+
+    for (int i = 1; i < arrlen(node.list.elements); i++)
+    {
+        c_compile(state, node.list.elements[i]);
+
+        if (i != arrlen(node.list.elements) - 1)
+        {
+            string(&state->source, ", ");
+        }
+    }
+
+    string(&state->source, ")");
+}
+
+void c_compile_return(CCompilationState *state, AST node)
+{
+    string(&state->source, "return ");
+    for (int i = 1; i < arrlen(node.list.elements); i++)
+    {
+        c_compile(state, node.list.elements[i]);
+
+        if (i != arrlen(node.list.elements) - 1)
+        {
+            string(&state->source, ", ");
+        }
+    }
 }
 
 void c_compile_var(CCompilationState *state, AST node)
 {
     AST sym = node.list.elements[1];
     assert(sym.type == AST_SYMBOL);
-    strstr(&state->source, "int ", sym.symbol, ";\n");
+    strstr(&state->source, "int ", sym.symbol);
 }
 
 void c_compile_set(CCompilationState *state, AST node)
@@ -644,13 +767,12 @@ void c_compile_set(CCompilationState *state, AST node)
     assert(sym.type == AST_SYMBOL);
     strstr(&state->source, sym.symbol, " = ");
     c_compile(state, node.list.elements[2]);
-    string(&state->source, ";\n");
 }
 
 void c_compile_infix(CCompilationState *state, AST left, char *f, AST right)
 {
     c_compile(state, left);
-    string(&state->source, f);
+    strstr(&state->source, " ", f, " ");
     c_compile(state, right);
 }
 
@@ -662,6 +784,7 @@ void c_compile_list(CCompilationState *state, AST node)
     {
         AST head = node.list.elements[0];
         assert(head.type == AST_SYMBOL);
+
         if (strcmp(head.symbol, "if") == 0)
         {
             return c_compile_if(state, node);
@@ -682,12 +805,26 @@ void c_compile_list(CCompilationState *state, AST node)
         {
             return c_compile_infix(state, node.list.elements[1], "==", (AST){.type = AST_NUMBER, .number = 0});
         }
+        else if (strcmp(head.symbol, "<=") == 0 || strcmp(head.symbol, "*") == 0 || strcmp(head.symbol, "-") == 0)
+        {
+            return c_compile_infix(state, node.list.elements[1], head.symbol, node.list.elements[2]);
+        }
+        else if (strcmp(head.symbol, "defn") == 0)
+        {
+            return c_compile_defn(state, node);
+        }
+        else if (strcmp(head.symbol, "return") == 0)
+        {
+            return c_compile_return(state, node);
+        }
         else
         {
-            printf("unhandled head: ");
+            printf("unhandled head, assuming funcall: ");
             print_ast(&head);
             printf("\n");
-            assert(0);
+            // assert(0);
+
+            c_compile_funcall(state, node);
         }
         break;
     }

@@ -8,9 +8,9 @@ Tokenize lisp.
 git clone --recursive https://github.com/saikyun/vajer
 cd libtcc-example
 cd lib/tinycc
-./configure
+./configure --config-codesign
 make
-make test    ## fails on macos monterey, but examples still work
+make test
 cd ..
 ```
 
