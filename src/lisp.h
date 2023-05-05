@@ -1,7 +1,12 @@
+#ifndef LISP_H
+#define LISP_H
+
 #include <ctype.h>
 #define STB_DS_IMPLEMENTATION
 #include "stb_ds.h"
 #include "sai_string.h"
+
+#include "libtcc.h"
 
 typedef enum TokenType
 {
@@ -62,7 +67,7 @@ Token newline(TokenizeState *state)
     return (Token){TOKEN_NEWLINE, start, state->pos};
 }
 
-const char *symbol_chars = "<=*-?+:";
+const char *symbol_chars = "<=*-?+:_";
 
 int is_symbol(char c)
 {
@@ -925,3 +930,42 @@ char *c_compile_all(AST *from)
 
     return state.source.str;
 }
+
+////////////////// Eval //////////////////////
+
+void eval(char *code)
+{
+    Token *tokens = tokenize(code, strlen(code));
+    AST *root_nodes = parse_all(code, tokens);
+    printf("\n");
+    print_ast(root_nodes);
+    printf("\n");
+
+    AST *transformed_nodes = c_transform_all(root_nodes);
+    printf("\n");
+    for (int i = 0; i < arrlen(transformed_nodes); i++)
+    {
+        print_ast(&transformed_nodes[i]);
+    }
+    printf("\n");
+
+    char *source = c_compile_all(transformed_nodes);
+    printf("source:\n%s\n", source);
+
+    TCCState *s = tcc_new();
+    tcc_set_output_type(s, TCC_OUTPUT_MEMORY);
+
+    String src = (String){};
+
+    strstr(&src,
+           "#include <stdio.h>\n"
+           "#include <string.h>\n",
+           "#include <SDL2/SDL.h>\n",
+           source);
+
+    assert(tcc_compile_string(s, src.str) != -1);
+
+    tcc_run(s, 0, NULL);
+}
+
+#endif

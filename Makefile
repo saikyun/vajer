@@ -1,7 +1,7 @@
 CC=clang
-CFLAGS=-g
-INCLUDES=-Ilib
-LIBS=-Llib/tinycc -ltcc
+CFLAGS=-g -D_THREAD_SAFE
+INCLUDES=-Ilib -I/usr/local/include/SDL2 -I/usrc/local/include/SDL2_ttf
+LIBS=-Llib/tinycc -ltcc -L/usr/local/lib -lSDL2 
 
 test: FORCE
 	./lib/tinycc/tcc $(INCLUDES) -I. $(LIBS) $(CFLAGS) -run test/test.c

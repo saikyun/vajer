@@ -421,3 +421,25 @@ int strlen_plus_n(char* str, int num) {
   return num + strlen(str);
 }
 ```
+
+---------------------
+
+For now, I wanna try to do the basics to run a sdl window, but write it in my lisp.
+
+I'm also a bit tired of writing lispy code inside C-strings, so let's start by figuring out how to "load" a file in C.
+
+* [x] Open a file and turn it into a char *
+    * [x] Open a file
+    * [x] Read many stuffs from it
+
+I quickly got stuck. Need to compare the load_files I've written to see what's going on.
+
+Managed to solve it. It seems I was trying to read large chunks when I was supposed to read one char at the time, I think.
+
+* [x] `eval`
+
+Managed to run SDL_Init and SDL_Quit!
+
+Next up is creating a window and stuff like that. :)
+
+I'll have to check my kickstart-sdl repo to see what should be done next.
