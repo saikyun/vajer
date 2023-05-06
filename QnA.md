@@ -443,3 +443,11 @@ Managed to run SDL_Init and SDL_Quit!
 Next up is creating a window and stuff like that. :)
 
 I'll have to check my kickstart-sdl repo to see what should be done next.
+
+### Do I want def, or let, or something let-like that can hande errors etc?
+
+# TODO: I probably need to solve running transform on arguments of function calls.
+
+# TODO: I need to know types of ast nodes
+
+It seems that for SDL to work on macos, I'm going to need while loops and void if-statements. Gotta fix that then!

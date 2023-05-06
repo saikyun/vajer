@@ -329,20 +329,24 @@ MU_TEST(test_compile_two_types)
         ")";
     Token *tokens = tokenize(code, strlen(code));
     AST *root_nodes = parse_all(code, tokens);
+    /*
     printf("\n");
     print_ast(root_nodes);
     printf("\n");
+    */
 
     AST *transformed_nodes = c_transform_all(root_nodes);
+    /*
     printf("\n");
     for (int i = 0; i < arrlen(transformed_nodes); i++)
     {
         print_ast(&transformed_nodes[i]);
     }
     printf("\n");
+    */
 
     char *source = c_compile_all(transformed_nodes);
-    printf("source:\n%s\n", source);
+    // printf("source:\n%s\n", source);
 
     TCCState *s = tcc_new();
     tcc_set_output_type(s, TCC_OUTPUT_MEMORY);
@@ -367,6 +371,61 @@ MU_TEST(test_compile_two_types)
     mu_assert(10 == strlen_plus_n("hello", 5));
 }
 
+MU_TEST(test_compile_while)
+{
+    const char *code =
+        "(defn plusser [nof :int] :int\n"
+        "  (var res :int 0)\n"
+        "  (while (> nof -1)\n"
+        "    (set res (+ res nof))\n"
+        "    (set nof (- nof 1))\n"
+        "  )\n"
+        "  res\n"
+        ")";
+    Token *tokens = tokenize(code, strlen(code));
+    AST *root_nodes = parse_all(code, tokens);
+
+    printf("\n");
+    print_ast(root_nodes);
+    printf("\n");
+
+    AST *transformed_nodes = c_transform_all(root_nodes);
+    
+    printf("\n");
+    for (int i = 0; i < arrlen(transformed_nodes); i++)
+    {
+        print_ast(&transformed_nodes[i]);
+    }
+    printf("\n");
+    
+
+    char *source = c_compile_all(transformed_nodes);
+    printf("source:\n%s\n", source);
+
+    TCCState *s = tcc_new();
+    tcc_set_output_type(s, TCC_OUTPUT_MEMORY);
+
+    String src = (String){};
+
+    strstr(&src,
+           "#include <stdio.h>\n"
+           "#include <string.h>",
+           source);
+
+    mu_assert(tcc_compile_string(s, src.str) != -1);
+
+    int size = tcc_relocate(s, NULL);
+    mu_assert(size != -1);
+    void *mem = malloc(size);
+    tcc_relocate(s, mem);
+
+    int (*plusser)(int) = tcc_get_symbol(s, "plusser");
+    mu_assert(plusser != NULL);
+
+    // don't ask me what this function does. I'm sorry.
+    mu_assert(91 == plusser(13));
+}
+
 MU_TEST_SUITE(lisp_suite)
 {
     // tokenize
@@ -385,4 +444,5 @@ MU_TEST_SUITE(lisp_suite)
     MU_RUN_TEST(test_compile_if);
     MU_RUN_TEST(test_compile_defn);
     MU_RUN_TEST(test_compile_two_types);
+    MU_RUN_TEST(test_compile_while);
 }

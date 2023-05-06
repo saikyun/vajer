@@ -67,7 +67,7 @@ Token newline(TokenizeState *state)
     return (Token){TOKEN_NEWLINE, start, state->pos};
 }
 
-const char *symbol_chars = "<=*-?+:_";
+const char *symbol_chars = "<>=*-?+:_!&.";
 
 int is_symbol(char c)
 {
@@ -88,6 +88,22 @@ Token number(TokenizeState *state)
     while (state->pos < state->count && isdigit(state->code[state->pos]))
         state->pos++;
     return (Token){TOKEN_NUMBER, start, state->pos};
+}
+
+Token negative_number_or_symbol(TokenizeState *state)
+{
+    int start = state->pos;
+    if (state->pos + 1 < state->count && isdigit(state->code[state->pos + 1]))
+    {
+        state->pos++;
+        while (state->pos < state->count && isdigit(state->code[state->pos]))
+            state->pos++;
+        return (Token){TOKEN_NUMBER, start, state->pos};
+    }
+    else
+    {
+        return token_symbol(state);
+    }
 }
 
 Token token_string(TokenizeState *state)
@@ -173,13 +189,17 @@ Token *tokenize(const char *str, int count)
         {
             arrpush(tokens, newline(&state));
         }
-        else if (is_symbol(c))
-        {
-            arrpush(tokens, token_symbol(&state));
-        }
         else if (isdigit(c))
         {
             arrpush(tokens, number(&state));
+        }
+        else if (c == '-')
+        {
+            arrpush(tokens, negative_number_or_symbol(&state));
+        }
+        else if (is_symbol(c))
+        {
+            arrpush(tokens, token_symbol(&state));
         }
         else
         {
@@ -357,14 +377,15 @@ AST parse(ParseState *state)
     {
         state->pos++;
         int num = 0;
-        int len = token.stop - token.start;
+        int negative_number = state->code[token.start] == '-';
+        int len = token.stop - token.start - negative_number;
         for (int i = 0; i < len; i++)
         {
             num += (state->code[token.stop - i - 1] - '0') * pow(10, i);
         }
-        return (AST){.type = AST_NUMBER, .number = num};
+        return (AST){.type = AST_NUMBER, .number = negative_number ? -num : num};
     }
-    else if (token.type == TOKEN_WHITESPACE || token.type == TOKEN_NEWLINE)
+    else if (token.type == TOKEN_WHITESPACE || token.type == TOKEN_NEWLINE || token.type == TOKEN_COMMENT)
     {
         state->pos++;
         return (AST){.type = AST_EMPTY};
@@ -462,14 +483,14 @@ SymAST transform_if(CTransformState *state, AST *node)
 {
     char *sym = gensym(state);
     AST do_block = list2(symbol("do"),
-                         list2(symbol("var"), symbol(sym)));
+                         list3(symbol("var"), symbol(sym), symbol(":int")));
 
     SymAST cond = transform(state, &node->list.elements[1]);
     if (cond.sym != NULL)
     {
         arrpush(do_block.list.elements,
                 list4(symbol("do"),
-                      list2(symbol("var"), symbol(cond.sym)),
+                      list3(symbol("var"), symbol(cond.sym), symbol(":int")),
                       cond.ast,
                       list3(symbol("set"), symbol(sym), symbol(cond.sym))));
         node->list.elements[1] = symbol(cond.sym);
@@ -480,7 +501,7 @@ SymAST transform_if(CTransformState *state, AST *node)
     {
         node->list.elements[2] =
             list4(symbol("do"),
-                  list2(symbol("var"), symbol(branch1.sym)),
+                  list3(symbol("var"), symbol(branch1.sym), symbol(":int")),
                   branch1.ast,
                   list3(symbol("set"), symbol(sym), symbol(branch1.sym)));
     }
@@ -494,7 +515,7 @@ SymAST transform_if(CTransformState *state, AST *node)
     {
         node->list.elements[3] =
             list4(symbol("do"),
-                  list2(symbol("var"), symbol(branch2.sym)),
+                  list3(symbol("var"), symbol(branch2.sym), symbol(":int")),
                   branch1.ast,
                   list3(symbol("set"), symbol(sym), symbol(branch2.sym)));
     }
@@ -569,7 +590,7 @@ SymAST transform_defn(CTransformState *state, AST *node)
 
     if (ressym)
     {
-        arrins(node->list.elements, 4, list2(symbol("var"), symbol(ressym)));
+        arrins(node->list.elements, 4, list3(symbol("var"), symbol(ressym), symbol(":int")));
     }
 
     AST *args = node->list.elements[2].list.elements;
@@ -610,7 +631,7 @@ SymAST transform_list(CTransformState *state, AST *node)
         {
             return (SymAST){.sym = NULL, .ast = *node};
         }
-        else if (strcmp(head.symbol, "=") == 0 || strcmp(head.symbol, "<=") == 0 || strcmp(head.symbol, "*") == 0 || strcmp(head.symbol, "+") == 0 || strcmp(head.symbol, "return") == 0)
+        else if (strcmp(head.symbol, "=") == 0 || strcmp(head.symbol, "<=") == 0 || strcmp(head.symbol, "*") == 0 || strcmp(head.symbol, "!=") == 0 || strcmp(head.symbol, "+") == 0 || strcmp(head.symbol, "return") == 0)
         {
             return (SymAST){.sym = NULL, .ast = *node};
         }
@@ -622,6 +643,7 @@ SymAST transform_list(CTransformState *state, AST *node)
         {
             printf("unhandled symbol, assuming funcall: %s\n", head.symbol);
             // assert(0);
+
             return (SymAST){.sym = NULL, .ast = *node};
         }
         break;
@@ -718,16 +740,33 @@ void c_compile_if(CCompilationState *state, AST node)
     string(&state->source, ") {\n");
     c_compile_in_block(state, node.list.elements[2]);
     c_compile_indentation(state);
-    string(&state->source, "} else {\n");
-    c_compile_in_block(state, node.list.elements[3]);
-    c_compile_indentation(state);
     string(&state->source, "}");
+    if (arrlen(node.list.elements) > 3)
+    {
+        string(&state->source, " else {\n");
+        c_compile_in_block(state, node.list.elements[3]);
+        c_compile_indentation(state);
+        string(&state->source, "}");
+    }
 }
 
 void c_compile_do(CCompilationState *state, AST node)
 {
     string(&state->source, "{\n");
     for (int i = 1; i < arrlen(node.list.elements); i++)
+    {
+        c_compile_in_block(state, node.list.elements[i]);
+    }
+    c_compile_indentation(state);
+    string(&state->source, "}");
+}
+
+void c_compile_while(CCompilationState *state, AST node)
+{
+    string(&state->source, "while (");
+    c_compile(state, node.list.elements[1]);
+    string(&state->source, ") {\n");
+    for (int i = 2; i < arrlen(node.list.elements); i++)
     {
         c_compile_in_block(state, node.list.elements[i]);
     }
@@ -803,9 +842,17 @@ void c_compile_return(CCompilationState *state, AST node)
 
 void c_compile_var(CCompilationState *state, AST node)
 {
+    assert(arrlen(node.list.elements) >= 3);
     AST sym = node.list.elements[1];
+    AST type = node.list.elements[2];
     assert(sym.type == AST_SYMBOL);
-    strstr(&state->source, "int ", sym.symbol);
+    strstr(&state->source, type.symbol + 1, " ", sym.symbol);
+
+    if (arrlen(node.list.elements) > 3)
+    {
+        string(&state->source, " = ");
+        c_compile(state, node.list.elements[3]);
+    }
 }
 
 void c_compile_set(CCompilationState *state, AST node)
@@ -840,6 +887,10 @@ void c_compile_list(CCompilationState *state, AST node)
         {
             return c_compile_do(state, node);
         }
+        else if (strcmp(head.symbol, "while") == 0)
+        {
+            return c_compile_while(state, node);
+        }
         else if (strcmp(head.symbol, "var") == 0)
         {
             return c_compile_var(state, node);
@@ -852,7 +903,7 @@ void c_compile_list(CCompilationState *state, AST node)
         {
             return c_compile_infix(state, node.list.elements[1], "==", (AST){.type = AST_NUMBER, .number = 0});
         }
-        else if (strcmp(head.symbol, "<=") == 0 || strcmp(head.symbol, "*") == 0 || strcmp(head.symbol, "+") == 0 || strcmp(head.symbol, "-") == 0)
+        else if (strcmp(head.symbol, "<=") == 0 || strcmp(head.symbol, ">") == 0 || strcmp(head.symbol, "!=") == 0 || strcmp(head.symbol, "==") == 0 || strcmp(head.symbol, "*") == 0 || strcmp(head.symbol, "+") == 0 || strcmp(head.symbol, "-") == 0)
         {
             return c_compile_infix(state, node.list.elements[1], head.symbol, node.list.elements[2]);
         }
@@ -961,6 +1012,7 @@ void eval(char *code)
            "#include <stdio.h>\n"
            "#include <string.h>\n",
            "#include <SDL2/SDL.h>\n",
+           "#include <assert.h>\n",
            source);
 
     assert(tcc_compile_string(s, src.str) != -1);
