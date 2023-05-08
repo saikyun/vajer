@@ -67,7 +67,7 @@ Token newline(TokenizeState *state)
     return (Token){TOKEN_NEWLINE, start, state->pos};
 }
 
-const char *symbol_chars = "<>=*-?+:_!&.";
+const char *symbol_chars = "<>=*-?+:_!&.@'";
 
 int is_symbol(char c)
 {
@@ -903,8 +903,9 @@ void c_compile_list(CCompilationState *state, AST node)
         {
             return c_compile_infix(state, node.list.elements[1], "==", (AST){.type = AST_NUMBER, .number = 0});
         }
-        else if (strcmp(head.symbol, "<=") == 0 || strcmp(head.symbol, ">") == 0 || strcmp(head.symbol, "!=") == 0 || strcmp(head.symbol, "==") == 0 || strcmp(head.symbol, "*") == 0 || strcmp(head.symbol, "+") == 0 || strcmp(head.symbol, "-") == 0)
+        else if (strcmp(head.symbol, "<=") == 0 || strcmp(head.symbol, ">") == 0 || strcmp(head.symbol, "<") == 0 || strcmp(head.symbol, "!=") == 0 || strcmp(head.symbol, "==") == 0 || strcmp(head.symbol, "*") == 0 || strcmp(head.symbol, "+") == 0 || strcmp(head.symbol, "-") == 0)
         {
+            assert(arrlen(node.list.elements) == 3);
             return c_compile_infix(state, node.list.elements[1], head.symbol, node.list.elements[2]);
         }
         else if (strcmp(head.symbol, "defn") == 0)
@@ -957,7 +958,20 @@ void c_compile(CCompilationState *state, AST node)
     }
     case AST_STRING:
     {
-        strstr(&state->source, "\"", node.string, "\"");
+        string(&state->source, "\"");
+
+        printf("str: %s %d\n", node.string, strlen(node.string));
+
+        for (char *c = node.string; *c != '\0'; c++) {
+            if (*c == '\n') {
+                string(&state->source, "\\n\"\n\"");
+            } else {
+                add_char(&state->source, *c);
+            }
+        }
+
+        string(&state->source, "\"");
+        
         break;
     }
     default:

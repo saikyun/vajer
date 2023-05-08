@@ -38,6 +38,24 @@ void string(String *str, char *src)
     memset(str->str + str->length, '\0', 1);
 }
 
+void add_char(String *str, char c)
+{
+    int length = 1;
+
+    while (str->capacity <= str->length + length + 1)
+    {
+        int new_cap = (str->capacity + length + 1) * 2;
+        sai_string_grow(str, new_cap);
+    }
+
+    memcpy(str->str + str->length, &c, length);
+    str->length += length;
+
+    assert(str->length + 1 < str->capacity);
+
+    memset(str->str + str->length, '\0', 1);
+}
+
 void _strstr(String *str, int count, char **arr)
 {
     for (int i = 0; i < count; i++)
