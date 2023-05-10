@@ -451,3 +451,32 @@ I'll have to check my kickstart-sdl repo to see what should be done next.
 # TODO: I need to know types of ast nodes
 
 It seems that for SDL to work on macos, I'm going to need while loops and void if-statements. Gotta fix that then!
+
+# TODO: This code breaks because of `if` wanting to set a parent's (defn's) return value
+
+```
+(defn move-up
+  [map :char*
+   mapw :int
+   maph :int] :int
+  (var pos :int (- (strchr map 0) map))
+  (if (>= (- pos mapw) 0)
+    (do
+      (put map pos 1)
+      (put map (- pos mapw) 0)
+      0))
+)
+```
+
+---------------------------
+
+I've added while loops and somehow void if statements. Now a character can walk around on a map. Pretty neat!
+
+I wonder what the next step is?
+
+Perhaps money. : )
+
+* [ ] Add money
+    * [ ] Randomly put money on map
+    * [ ] When money is walked on, increment gold counter
+    * [ ] Print gold counter

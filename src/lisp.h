@@ -67,17 +67,17 @@ Token newline(TokenizeState *state)
     return (Token){TOKEN_NEWLINE, start, state->pos};
 }
 
-const char *symbol_chars = "<>=*-?+:_!&.@'";
+const char *symbol_chars = "<>=*-?+:_!&.@'\\";
 
-int is_symbol(char c)
+int is_symbol(int is_first, char c)
 {
-    return isalpha(c) || strchr(symbol_chars, c) != NULL;
+    return (is_first ? isalpha(c) : isalpha(c) || isdigit(c)) || strchr(symbol_chars, c) != NULL;
 }
 
 Token token_symbol(TokenizeState *state)
 {
     int start = state->pos;
-    while (state->pos < state->count && is_symbol(state->code[state->pos]))
+    while (state->pos < state->count && is_symbol(start == state->pos, state->code[state->pos]))
         state->pos++;
     return (Token){TOKEN_SYMBOL, start, state->pos};
 }
@@ -197,7 +197,7 @@ Token *tokenize(const char *str, int count)
         {
             arrpush(tokens, negative_number_or_symbol(&state));
         }
-        else if (is_symbol(c))
+        else if (is_symbol(1, c))
         {
             arrpush(tokens, token_symbol(&state));
         }
@@ -863,11 +863,32 @@ void c_compile_set(CCompilationState *state, AST node)
     c_compile(state, node.list.elements[2]);
 }
 
+void c_compile_in(CCompilationState *state, AST node)
+{
+    AST sym = node.list.elements[1];
+    assert(sym.type == AST_SYMBOL);
+    strstr(&state->source, sym.symbol, "[");
+    c_compile(state, node.list.elements[2]);
+    strstr(&state->source, "]");
+}
+
+void c_compile_put(CCompilationState *state, AST node)
+{
+    AST sym = node.list.elements[1];
+    assert(sym.type == AST_SYMBOL);
+    strstr(&state->source, sym.symbol, "[");
+    c_compile(state, node.list.elements[2]);
+    strstr(&state->source, "] = ");
+    c_compile(state, node.list.elements[3]);
+}
+
 void c_compile_infix(CCompilationState *state, AST left, char *f, AST right)
 {
+    string(&state->source, "(");
     c_compile(state, left);
     strstr(&state->source, " ", f, " ");
     c_compile(state, right);
+    string(&state->source, ")");
 }
 
 void c_compile_list(CCompilationState *state, AST node)
@@ -887,6 +908,14 @@ void c_compile_list(CCompilationState *state, AST node)
         {
             return c_compile_do(state, node);
         }
+        else if (strcmp(head.symbol, "in") == 0)
+        {
+            return c_compile_in(state, node);
+        }
+        else if (strcmp(head.symbol, "put") == 0)
+        {
+            return c_compile_put(state, node);
+        }
         else if (strcmp(head.symbol, "while") == 0)
         {
             return c_compile_while(state, node);
@@ -903,7 +932,7 @@ void c_compile_list(CCompilationState *state, AST node)
         {
             return c_compile_infix(state, node.list.elements[1], "==", (AST){.type = AST_NUMBER, .number = 0});
         }
-        else if (strcmp(head.symbol, "<=") == 0 || strcmp(head.symbol, ">") == 0 || strcmp(head.symbol, "<") == 0 || strcmp(head.symbol, "!=") == 0 || strcmp(head.symbol, "==") == 0 || strcmp(head.symbol, "*") == 0 || strcmp(head.symbol, "+") == 0 || strcmp(head.symbol, "-") == 0)
+        else if (strcmp(head.symbol, "<=") == 0 || strcmp(head.symbol, ">=") == 0 || strcmp(head.symbol, ">") == 0 || strcmp(head.symbol, "<") == 0 || strcmp(head.symbol, "!=") == 0 || strcmp(head.symbol, "==") == 0 || strcmp(head.symbol, "*") == 0 || strcmp(head.symbol, "+") == 0 || strcmp(head.symbol, "-") == 0)
         {
             assert(arrlen(node.list.elements) == 3);
             return c_compile_infix(state, node.list.elements[1], head.symbol, node.list.elements[2]);
@@ -959,8 +988,6 @@ void c_compile(CCompilationState *state, AST node)
     case AST_STRING:
     {
         string(&state->source, "\"");
-
-        printf("str: %s %d\n", node.string, strlen(node.string));
 
         for (char *c = node.string; *c != '\0'; c++) {
             if (*c == '\n') {
