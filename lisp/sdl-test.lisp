@@ -1,3 +1,5 @@
+(var gold :int 0)
+
 (defn draw-symbol
   [renderer :SDL_Renderer*
    symbols  :char**
@@ -22,6 +24,22 @@
   )
 )
 
+(defn move
+  [map :char*
+   from :int
+   to :int] :int
+  (var thing :int (in map to))
+  (put map from 1)
+  (put map to 0)
+  
+  (if (== 3 thing)
+    (do
+    (set gold (+ gold 1))
+    (printf "gold! %d\n" gold)
+    )
+    0
+  ))
+
 (defn move-up
   [map :char*
    mapw :int
@@ -29,8 +47,7 @@
   (var pos :int (- (strchr map 0) map))
   (if (>= (- pos mapw) 0)
     (do
-      (put map pos 1)
-      (put map (- pos mapw) 0)
+      (move map pos (- pos mapw))
       0))
 )
 
@@ -39,8 +56,8 @@
    mapw :int
    maph :int] :int
   (var pos :int (- (strchr map 0) map))
-  (put map pos 1)
-  (put map (- pos 1) 0)
+  (move map pos (- pos 1))
+  0
 )
 
 (defn move-right
@@ -48,8 +65,8 @@
    mapw :int
    maph :int] :int
   (var pos :int (- (strchr map 0) map))
-  (put map pos 1)
-  (put map (+ pos 1) 0)
+  (move map pos (+ pos 1))
+  0
 )
 
 (defn move-down
@@ -57,11 +74,12 @@
    mapw :int
    maph :int] :void
   (var pos :int (- (strchr map 0) map))
-  (put map pos 1)
-  (put map (+ pos mapw) 0)
+  (move map pos (+ pos mapw))
 )
 
 (defn main [] :int
+  (srand (time NULL))
+
   (var at :char*
 " ..... 
 .     .
@@ -94,13 +112,26 @@
  .     
 ")
 
-  (var symbols :char** (malloc (* 3 (sizeof char*))))
+
+  (var gold :char*
+"   .   
+  ...  
+ . . . 
+  ..   
+   ..  
+ . . . 
+  ...  
+")
+
+  (var symbols :char** (malloc (* 4 (sizeof char*))))
 
   (set *symbols at)
   (var ref :char** (+ symbols 1))
   (set *ref blank)
   (set ref (+ symbols 2))
   (set *ref dot)
+  (set ref (+ symbols 3))
+  (set *ref gold)
 
   (var tilesize :int 8)
   (var mapw :int 8)
@@ -111,6 +142,14 @@
   (put map maplen '\0')
 
   (printf "map: %s\n" map)
+
+  (var i :int)
+  (while (< i maplen)
+    (if (< 15 (% (rand) 20))
+      (put map i 3)
+    )
+    (set i (+ i 1))
+  )
 
   (put map 5 0)
 
