@@ -67,7 +67,7 @@ Token newline(TokenizeState *state)
     return (Token){TOKEN_NEWLINE, start, state->pos};
 }
 
-const char *symbol_chars = "<>=*-?+:_!&.@'\\%";
+const char *symbol_chars = "<>=*-?+:_!&.@'\\%|";
 
 int is_symbol(int is_first, char c)
 {
@@ -932,7 +932,7 @@ void c_compile_list(CCompilationState *state, AST node)
         {
             return c_compile_infix(state, node.list.elements[1], "==", (AST){.type = AST_NUMBER, .number = 0});
         }
-        else if (strcmp(head.symbol, "<=") == 0 || strcmp(head.symbol, ">=") == 0 || strcmp(head.symbol, ">") == 0 || strcmp(head.symbol, "<") == 0 || strcmp(head.symbol, "!=") == 0 || strcmp(head.symbol, "==") == 0 || strcmp(head.symbol, "*") == 0 || strcmp(head.symbol, "+") == 0 || strcmp(head.symbol, "-") == 0 || strcmp(head.symbol, "%") == 0)
+        else if (strcmp(head.symbol, "<=") == 0 || strcmp(head.symbol, ">=") == 0 || strcmp(head.symbol, ">") == 0 || strcmp(head.symbol, "<") == 0 || strcmp(head.symbol, "!=") == 0 || strcmp(head.symbol, "==") == 0 || strcmp(head.symbol, "*") == 0 || strcmp(head.symbol, "+") == 0 || strcmp(head.symbol, "-") == 0 || strcmp(head.symbol, "%") == 0 || strcmp(head.symbol, "&&") == 0 || strcmp(head.symbol, "||") == 0)
         {
             assert(arrlen(node.list.elements) == 3);
             return c_compile_infix(state, node.list.elements[1], head.symbol, node.list.elements[2]);

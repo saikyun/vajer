@@ -1,4 +1,5 @@
 (var gold :int 0)
+(var dead :int 0)
 
 (defn draw-symbol
   [renderer :SDL_Renderer*
@@ -24,19 +25,51 @@
   )
 )
 
+(defn move-boulder
+  [map :char*
+   mapw :int
+   maph :int
+   from :int] :void
+  (printf "move boulder\n")
+  (var to :int (+ from mapw))
+
+  (var lul :int 0)
+  (while (< lul 1)
+    (if (&& (== 0 (in map to))
+        (< to (* mapw maph))
+    )
+      (set dead 1))
+    (set lul 1))
+
+  (put map from 1)
+  (put map to 4)
+)
+
 (defn move
   [map :char*
    from :int
    to :int] :int
   (var thing :int (in map to))
-  (put map from 1)
-  (put map to 0)
+
+  (var lul :int 0)
+  (while (< lul 1)
+    (if (== 4 thing)
+      (do
+      (printf "boulder! %d\n" gold)
+      )
+      (do
+      (put map from 1)
+      (put map to 0)
+      )
+      )
+    (set lul 1))
   
   (if (== 3 thing)
     (do
     (set gold (+ gold 1))
     (printf "gold! %d\n" gold)
     )
+    
     0
   ))
 
@@ -123,7 +156,17 @@
   ...  
 ")
 
-  (var symbols :char** (malloc (* 4 (sizeof char*))))
+  (var boulder :char*
+"       
+  ...  
+ .   . 
+ .   . 
+ .   . 
+ .   . 
+  ...  
+")
+
+  (var symbols :char** (malloc (* 5 (sizeof char*))))
 
   (set *symbols at)
   (var ref :char** (+ symbols 1))
@@ -132,6 +175,8 @@
   (set *ref dot)
   (set ref (+ symbols 3))
   (set *ref gold)
+  (set ref (+ symbols 4))
+  (set *ref boulder)
 
   (var tilesize :int 8)
   (var mapw :int 8)
@@ -143,12 +188,20 @@
 
   (printf "map: %s\n" map)
 
-  (var i :int)
+  (var i :int 0)
   (while (< i maplen)
     (if (< 15 (% (rand) 20))
       (put map i 3)
     )
     (set i (+ i 1))
+  )
+
+  (var i2 :int 0)
+  (while (< i2 maplen)
+    (if (< 15 (% (rand) 20))
+      (put map i2 4)
+    )
+    (set i2 (+ i2 1))
   )
 
   (put map 5 0)
@@ -173,7 +226,8 @@
           (do
             (if (== e.type SDL_QUIT)
               (set quit 0))
-            (if (== e.type SDL_KEYDOWN)
+            (if (&& (== 0 dead)
+                    (== e.type SDL_KEYDOWN))
               (do
                 (if (== e.key.keysym.sym SDLK_w)
                   (move_up map mapw maph))
@@ -198,7 +252,13 @@
       (var y :int 0)
       (while (< y maph)
         (while (< x mapw)
-          (draw_symbol renderer symbols (in map (+ x (* y mapw))) (* x tilesize) (* y tilesize))
+          (var pos :int (+ x (* y mapw)))
+          (if (&& (== (in map pos) 4)
+                   (|| (== (in map (+ pos mapw)) 0)
+                       (== (in map (+ pos mapw)) 1)))
+            (move_boulder map mapw maph pos)
+          )
+          (draw_symbol renderer symbols (in map pos) (* x tilesize) (* y tilesize))
           (set x (+ x 1))
         )
         (set x 0)

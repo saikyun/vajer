@@ -476,7 +476,18 @@ I wonder what the next step is?
 
 Perhaps money. : )
 
-* [ ] Add money
-    * [ ] Randomly put money on map
-    * [ ] When money is walked on, increment gold counter
-    * [ ] Print gold counter
+* [x] Add money
+    * [x] Randomly put money on map
+    * [x] When money is walked on, increment gold counter
+    * [x] Print gold counter
+
+# TODO: `(var x :int (if ...))` doesn't work -- in general things are not transformed recursively. need to fix :)
+
+What now?
+
+Falling boulders.
+
+* [ ] Falling boulders
+    * [ ] Randomly place boulders
+    * [ ] When a spot under a boulder is empty, it falls down
+    * [ ] When it falls down on a player, exit the game
