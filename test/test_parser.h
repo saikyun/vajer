@@ -1,6 +1,7 @@
 #include "minunit.h"
 #include "src/lisp.h"
 #include "libtcc.h"
+#include "slurp.h"
 
 MU_TEST(test_tokenize_string)
 {
@@ -385,22 +386,25 @@ MU_TEST(test_compile_while)
     Token *tokens = tokenize(code, strlen(code));
     AST *root_nodes = parse_all(code, tokens);
 
+    /*
     printf("\n");
     print_ast(root_nodes);
     printf("\n");
+    */
 
     AST *transformed_nodes = c_transform_all(root_nodes);
     
+    /*
     printf("\n");
     for (int i = 0; i < arrlen(transformed_nodes); i++)
     {
         print_ast(&transformed_nodes[i]);
     }
     printf("\n");
-    
+    */
 
     char *source = c_compile_all(transformed_nodes);
-    printf("source:\n%s\n", source);
+    // printf("source:\n%s\n", source);
 
     TCCState *s = tcc_new();
     tcc_set_output_type(s, TCC_OUTPUT_MEMORY);
@@ -426,6 +430,28 @@ MU_TEST(test_compile_while)
     mu_assert(91 == plusser(13));
 }
 
+
+MU_TEST(test_compile_set_if)
+{
+    char *code = slurp("lisp/set-if.lisp");
+    // char *code = slurp("lisp/funcall-if.lisp");
+    eval(code);
+}
+
+MU_TEST(test_add_type_declare)
+{
+    char *code = slurp("lisp/declare.lisp");
+    AST *ast = gen_ast(code);
+
+    for (int i = 0; i < arrlen(ast); i++) {
+        print_ast(&ast[i]);
+        printf(" type: %d\n", ast[i].value_type);
+    }
+
+    // lule should have type void
+    assert(ast[1].value_type == 1);
+}
+
 MU_TEST_SUITE(lisp_suite)
 {
     // tokenize
@@ -445,4 +471,8 @@ MU_TEST_SUITE(lisp_suite)
     MU_RUN_TEST(test_compile_defn);
     MU_RUN_TEST(test_compile_two_types);
     MU_RUN_TEST(test_compile_while);
+    MU_RUN_TEST(test_compile_set_if);
+
+    // add type
+    MU_RUN_TEST(test_add_type_declare);
 }

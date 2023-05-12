@@ -481,13 +481,59 @@ Perhaps money. : )
     * [x] When money is walked on, increment gold counter
     * [x] Print gold counter
 
-# TODO: `(var x :int (if ...))` doesn't work -- in general things are not transformed recursively. need to fix :)
-
 What now?
 
 Falling boulders.
 
-* [ ] Falling boulders
-    * [ ] Randomly place boulders
-    * [ ] When a spot under a boulder is empty, it falls down
-    * [ ] When it falls down on a player, exit the game
+* [x] Falling boulders
+    * [x] Randomly place boulders
+    * [x] When a spot under a boulder is empty, it falls down
+    * [x] When it falls down on a player, exit the game
+
+
+
+
+[x] TODO: `(var x :int (if ...))` doesn't work -- in general things are not transformed recursively. need to fix :)
+
+* [x] try running transform recursively
+
+It's kinda better, but `var` needs to be handled separately. I'm also not quite sure how this should work with e.g. args for a function call. How does it work now?
+
+* [x] Write a test for `if` in function arguments
+
+Now it behaves a bit better, but the output is kinda shitty.
+
+* [x] Output the current indentation when in upscope
+
+Funcall should probably not always end up in a gensym. :O
+...Or maybe it should.
+
+# TODO: Don't set result of void expressions to a varible :O
+
+I'd need types somewhere, and then code to somehow figure "hey, this type is void, let's not set stuff that is void".
+
+Where can I put types? I'm thinking on AST nodes. Certain things will have clearly defined types, like numbers. I guess numbers are their own type already. I think it's symbols that will need more type information.
+
+~~* [ ] Put .value_type in AST~~
+
+I need some way to resolve the symbol to get the type. I'm thinking something like fetching from a hash map, from symbol to type.
+
+But that gets confusing, since symbols can be shadowed etc. Maybe it's the AST that should have the type after all. I'll try it.
+
+* [x] Put .value_type in AST
+* [x] add `add_type_all`
+* [x] write test that checks that a type is defined for a `declare`d thing
+
+Okay, the chessboard has been set up.
+
+Now I need to... Add the types somehow.
+
+Easiest? key-value store. One for globals.
+
+* [x] add key-value struct, from symbol to type (...also a symbol)
+* [x] add `.globals` to TypeState
+* [x] `declare` populates `.globals`
+
+Phew, that seems to work.
+
+Now I need to use this when transforming / compiling C code. Need a break first though.

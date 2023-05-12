@@ -6,7 +6,7 @@
    symbols  :char**
    symbol_i   :char
    x        :int
-   y        :int] :void
+   y        :int] :int
   (var symbol :char* (in symbols symbol_i))
   (var w :int 8)
   (var h :int 7)
@@ -17,20 +17,23 @@
     (while (< i w)
       (set c (+ symbol (+ i (* w j))))
       (if (== *c '.')
-        (SDL_RenderDrawPoint renderer (+ x i) (+ y j)))
+      (do
+        (SDL_RenderDrawPoint renderer (+ x i) (+ y j))
+        0)
+      )
       (set i (+ i 1))
     )
     (set i 0)
     (set j (+ j 1))
   )
+  0
 )
 
 (defn move-boulder
   [map :char*
    mapw :int
    maph :int
-   from :int] :void
-  (printf "move boulder\n")
+   from :int] :int
   (var to :int (+ from mapw))
 
   (var lul :int 0)
@@ -38,11 +41,16 @@
     (if (&& (== 0 (in map to))
         (< to (* mapw maph))
     )
-      (set dead 1))
+    (do
+      (printf "YOU DIED\n")
+      (set dead 1)
+      0))
     (set lul 1))
 
   (put map from 1)
   (put map to 4)
+
+  0
 )
 
 (defn move
@@ -55,11 +63,13 @@
   (while (< lul 1)
     (if (== 4 thing)
       (do
-      (printf "boulder! %d\n" gold)
+        (printf "boulder! %d\n" gold)
+        0
       )
       (do
-      (put map from 1)
-      (put map to 0)
+        (put map from 1)
+        (put map to 0)
+        0
       )
       )
     (set lul 1))
@@ -68,6 +78,7 @@
     (do
     (set gold (+ gold 1))
     (printf "gold! %d\n" gold)
+    0
     )
     
     0
@@ -77,7 +88,8 @@
   [map :char*
    mapw :int
    maph :int] :int
-  (var pos :int (- (strchr map 0) map))
+  (var rrr :char* (strchr map 0))
+  (var pos :int (- rrr map))
   (if (>= (- pos mapw) 0)
     (do
       (move map pos (- pos mapw))
@@ -88,7 +100,8 @@
   [map :char*
    mapw :int
    maph :int] :int
-  (var pos :int (- (strchr map 0) map))
+  (var rrr :char* (strchr map 0))
+  (var pos :int (- rrr map))
   (move map pos (- pos 1))
   0
 )
@@ -97,7 +110,8 @@
   [map :char*
    mapw :int
    maph :int] :int
-  (var pos :int (- (strchr map 0) map))
+  (var rrr :char* (strchr map 0))
+  (var pos :int (- rrr map))
   (move map pos (+ pos 1))
   0
 )
@@ -105,9 +119,11 @@
 (defn move-down
   [map :char*
    mapw :int
-   maph :int] :void
-  (var pos :int (- (strchr map 0) map))
+   maph :int] :int
+  (var rrr :char* (strchr map 0))
+  (var pos :int (- rrr map))
   (move map pos (+ pos mapw))
+  0
 )
 
 (defn main [] :int
@@ -191,7 +207,10 @@
   (var i :int 0)
   (while (< i maplen)
     (if (< 15 (% (rand) 20))
+    (do
       (put map i 3)
+      0
+    )
     )
     (set i (+ i 1))
   )
@@ -199,7 +218,9 @@
   (var i2 :int 0)
   (while (< i2 maplen)
     (if (< 15 (% (rand) 20))
+    (do
       (put map i2 4)
+      0)
     )
     (set i2 (+ i2 1))
   )
@@ -225,7 +246,9 @@
       (if (!= res 0)
           (do
             (if (== e.type SDL_QUIT)
-              (set quit 0))
+            (do
+              (set quit 0)
+              0))
             (if (&& (== 0 dead)
                     (== e.type SDL_KEYDOWN))
               (do
@@ -236,8 +259,10 @@
                 (if (== e.key.keysym.sym SDLK_a)
                   (move_left map mapw maph))
                 (if (== e.key.keysym.sym SDLK_d)
-                  (move_right map mapw maph)))
+                  (move_right map mapw maph))
+                  0)
             )
+            0
           )
       )
 

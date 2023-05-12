@@ -1,0 +1,3 @@
+(declare lule :void)
+
+lule
