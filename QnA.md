@@ -537,3 +537,13 @@ Easiest? key-value store. One for globals.
 Phew, that seems to work.
 
 Now I need to use this when transforming / compiling C code. Need a break first though.
+
+I think main problem atm is that when doing a funcall, if the result is void, there should be no symbol. Let's try that!
+
+Now this is used when calling functions. Nice!
+
+It seems though like I'll need the same for other types of functions...
+
+* [ ] Add `declare` `SDL_Renderer*` for e.g. SDL_CreateRenderer
+* [ ] Add that type like with void
+* [ ] When that type is encountered is a funcall, change it from `int` to that type

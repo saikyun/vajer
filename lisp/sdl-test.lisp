@@ -1,6 +1,13 @@
 (var gold :int 0)
 (var dead :int 0)
 
+(declare SDL_RenderPresent :void)
+(declare SDL_SetRenderDrawColor :void)
+(declare SDL_RenderClear :void)
+(declare SDL_Quit :void)
+(declare printf :void)
+(declare srand :void)
+
 (defn draw-symbol
   [renderer :SDL_Renderer*
    symbols  :char**

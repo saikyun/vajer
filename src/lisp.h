@@ -216,7 +216,7 @@ Token *tokenize(const char *str, int count)
 
 typedef enum ASTType
 {
-    AST_LIST,
+    AST_LIST = 1,
 
     AST_STRING,
     AST_SYMBOL,
@@ -435,8 +435,15 @@ typedef struct TypeState
     SymbolType *globals;
 } TypeState;
 
+void add_type(TypeState *state, AST *node);
+
 void add_type_list(TypeState *state, AST *node)
 {
+    if (arrlen(node->list.elements) == 0)
+    {
+        return;
+    }
+
     AST head = node->list.elements[0];
     assert(head.type = AST_SYMBOL);
     if (strcmp(head.symbol, "declare") == 0)
@@ -445,6 +452,13 @@ void add_type_list(TypeState *state, AST *node)
             state->globals,
             node->list.elements[1].symbol,
             node->list.elements[2].symbol);
+    }
+    else
+    {
+        for (int i = 0; i < arrlen(node->list.elements); i++)
+        {
+            add_type(state, &node->list.elements[i]);
+        }
     }
 }
 
@@ -456,21 +470,22 @@ void add_type(TypeState *state, AST *node)
         add_type_list(state, node);
         break;
     case AST_SYMBOL:
-        printf("sym: %s\n", node->symbol);
-        printf("wat: %s\n", shget(state->globals, "lule"));
+    {
         char *type = shget(state->globals, node->symbol);
         if (type)
         {
-            printf("found type for: %s\n", node->symbol);
             if (strcmp(type, ":void") == 0)
             {
                 node->value_type = TYPE_VOID;
-            } else {
+            }
+            else
+            {
                 printf("no matching type for: %s\n", type);
                 assert(0);
             }
         }
         break;
+    }
     default:
         // printf("no action\n");
         break;
@@ -758,6 +773,9 @@ SymAST transform_funcall(CTransformState *state, AST *node)
     char *sym = gensym(state);
 
     AST head = node->list.elements[0];
+
+    int returns_void = head.value_type == TYPE_VOID;
+
     AST new_funcall = list1(head);
     AST upscope = list1(symbol("upscope"));
     upscope.no_semicolon = true;
@@ -778,9 +796,16 @@ SymAST transform_funcall(CTransformState *state, AST *node)
         }
     }
 
-    arrpush(upscope.list.elements, list3(symbol("set"), symbol(sym), new_funcall));
+    if (!returns_void)
+    {
+        arrpush(upscope.list.elements, list3(symbol("set"), symbol(sym), new_funcall));
+    }
+    else
+    {
+        arrpush(upscope.list.elements, new_funcall);
+    }
 
-    return (SymAST){.sym = sym, .ast = upscope};
+    return (SymAST){.sym = returns_void ? NULL : sym, .ast = upscope};
 }
 
 SymAST transform_defn(CTransformState *state, AST *node)
@@ -1176,6 +1201,10 @@ void c_compile_list(CCompilationState *state, AST node)
         {
             return c_compile_do(state, node);
         }
+        else if (strcmp(head.symbol, "declare") == 0)
+        {
+            // nothing
+        }
         else if (strcmp(head.symbol, "upscope") == 0)
         {
             return c_compile_upscope(state, node);
@@ -1336,7 +1365,7 @@ AST *gen_ast(char *code)
 
 void eval(char *code)
 {
-    int do_print = 0;
+    int do_print = 1;
 
     AST *transformed_nodes = gen_ast(code);
     if (do_print)

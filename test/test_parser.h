@@ -393,7 +393,7 @@ MU_TEST(test_compile_while)
     */
 
     AST *transformed_nodes = c_transform_all(root_nodes);
-    
+
     /*
     printf("\n");
     for (int i = 0; i < arrlen(transformed_nodes); i++)
@@ -430,7 +430,6 @@ MU_TEST(test_compile_while)
     mu_assert(91 == plusser(13));
 }
 
-
 MU_TEST(test_compile_set_if)
 {
     char *code = slurp("lisp/set-if.lisp");
@@ -443,13 +442,18 @@ MU_TEST(test_add_type_declare)
     char *code = slurp("lisp/declare.lisp");
     AST *ast = gen_ast(code);
 
-    for (int i = 0; i < arrlen(ast); i++) {
-        print_ast(&ast[i]);
-        printf(" type: %d\n", ast[i].value_type);
-    }
+    /*
+        printf("\ntype info:\n");
+        for (int i = 0; i < arrlen(ast); i++) {
+            print_ast(&ast[i]);
+            printf(" type: %d\n", ast[i].value_type);
+        }
+    */
 
     // lule should have type void
-    assert(ast[1].value_type == 1);
+    assert(ast[1].list.elements[1].list.elements[0].value_type == 1);
+
+    //    printf("\ncode:\n%s\n", c_compile_all(ast));
 }
 
 MU_TEST_SUITE(lisp_suite)

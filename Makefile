@@ -13,6 +13,10 @@ clang-test: clang-test-build
 clang-test-build:
 	clang $(CFLAGS) $(INCLUDES) -I. $(LIBS) -DSTACKTRACE_ON test/test.c -o build/test
 
+clang-test-experiment:
+	clang $(CFLAGS) $(INCLUDES) -I. $(LIBS) -DSTACKTRACE_ON experiments/compile_this.c -o build/experiment
+	./build/experiment
+
 clean:
 	rm -rf build/*
 
