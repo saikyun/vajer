@@ -546,4 +546,11 @@ It seems though like I'll need the same for other types of functions...
 
 * [x] Add `declare` `SDL_Renderer*` for e.g. SDL_CreateRenderer
 * [x] Add that type like with void
-* [ ] When that type is encountered is a funcall, change it from `int` to that type
+* [x] When that type is encountered is a funcall, change it from `int` to that type
+
+Okay, I did that, and then there were some stuff with `in` that I had to fix. It's kinda fixed but now `in` has the type of `char**` when it should be type `char*`.
+
+I also need to move things around a bit, so that it's the node that gets the "unique" type, rather than each `in` symbol having a different type.
+
+* [ ] Change it so that the node has the return type, rather than the function
+* [ ] Remove a * at the end for the `in` type (it kinda has the type `T* -> T`)
