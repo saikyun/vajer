@@ -10,12 +10,12 @@ test: FORCE
 clang-test: clang-test-build
 	./build/test
 
-clang-test-build:
-	clang $(CFLAGS) $(INCLUDES) -I. $(LIBS) -DSTACKTRACE_ON test/test.c -o build/test
+#clang-test-build:
+#	clang $(CFLAGS) $(INCLUDES) -I. $(LIBS) -DSTACKTRACE_ON test/test.c -o build/test
 
-clang-test-experiment:
-	clang $(CFLAGS) $(INCLUDES) -I. $(LIBS) -DSTACKTRACE_ON experiments/compile_this.c -o build/experiment
-	./build/experiment
+clang-test-build:
+	clang $(CFLAGS) $(INCLUDES) -I. $(LIBS) -DSTACKTRACE_ON build/sdl-test.c -o build/test
+#	./build/test
 
 clean:
 	rm -rf build/*

@@ -544,6 +544,6 @@ Now this is used when calling functions. Nice!
 
 It seems though like I'll need the same for other types of functions...
 
-* [ ] Add `declare` `SDL_Renderer*` for e.g. SDL_CreateRenderer
-* [ ] Add that type like with void
+* [x] Add `declare` `SDL_Renderer*` for e.g. SDL_CreateRenderer
+* [x] Add that type like with void
 * [ ] When that type is encountered is a funcall, change it from `int` to that type

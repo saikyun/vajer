@@ -451,7 +451,7 @@ MU_TEST(test_add_type_declare)
     */
 
     // lule should have type void
-    assert(ast[1].list.elements[1].list.elements[0].value_type == 1);
+    assert(strcmp(ast[1].list.elements[1].list.elements[0].value_type, ":void") == 0);
 
     //    printf("\ncode:\n%s\n", c_compile_all(ast));
 }

@@ -6,6 +6,10 @@
 (declare SDL_RenderClear :void)
 (declare SDL_Quit :void)
 (declare printf :void)
+(declare SDL_CreateRenderer :SDL_Renderer*)
+(declare SDL_CreateWindow :SDL_Window*)
+(declare malloc :void*)
+
 (declare srand :void)
 
 (defn draw-symbol
@@ -235,7 +239,7 @@
   (put map 5 0)
 
   (SDL_Init SDL_INIT_VIDEO)
-  (var window :SDL_Renderer*
+  (var window :SDL_Window*
     (SDL_CreateWindow "Little Line"
       100 100 (* mapw tilesize) (* maph tilesize)
       SDL_WINDOW_OPENGL))
