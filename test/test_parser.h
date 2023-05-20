@@ -443,17 +443,65 @@ MU_TEST(test_add_type_declare)
     AST *ast = gen_ast(code);
 
     /*
-        printf("\ntype info:\n");
-        for (int i = 0; i < arrlen(ast); i++) {
-            print_ast(&ast[i]);
-            printf(" type: %d\n", ast[i].value_type);
-        }
+    printf("\ntype info:\n");
+    for (int i = 0; i < arrlen(ast); i++)
+    {
+        print_ast(&ast[i]);
+        printf(" type: %d\n", ast[i].value_type);
+    }
     */
 
-    // lule should have type void
-    assert(strcmp(ast[1].list.elements[1].list.elements[0].value_type, ":void") == 0);
+    // result of lule should have type void
+    mu_assert(ast[1].list.elements[1].value_type != NULL);
+    mu_assert(strcmp(ast[1].list.elements[1].value_type, ":void") == 0);
 
     //    printf("\ncode:\n%s\n", c_compile_all(ast));
+}
+
+MU_TEST(test_add_type_list)
+{
+    char *code = slurp("lisp/list.lisp");
+    AST *ast = gen_ast(code);
+
+    /*
+    printf("\ntype info:\n");
+    for (int i = 0; i < arrlen(ast); i++)
+    {
+        print_ast(&ast[i]);
+        printf(" type: %s\n", ast[i].value_type);
+    }
+
+    // result of lule should have type void
+    print_ast(&ast[1].list.elements[1].list.elements[2]);
+    printf(" typerr: %s\n", ast[1].list.elements[1].list.elements[2].value_type);
+    printf("\n");
+    */
+
+    mu_assert(ast[1].list.elements[1].list.elements[2].value_type != NULL);
+    mu_assert(strcmp(ast[1].list.elements[1].list.elements[2].value_type, ":char") == 0);
+
+    //    printf("\ncode:\n%s\n", c_compile_all(ast));
+}
+
+MU_TEST(test_add_type_intermediate)
+{
+    char *code = slurp("lisp/intermediate_types.lisp");
+    AST *ast = gen_ast(code);
+
+    /*
+    printf("\ntype info:\n");
+    for (int i = 0; i < arrlen(ast); i++)
+    {
+        print_ast(&ast[i]);
+        printf(" type: %s\n", ast[i].value_type);
+    }
+
+    printf("\ncode:\n%s\n", c_compile_all(ast));
+    printf("type: %s\n", ast[1].list.elements[1].list.elements[2].symbol);
+    */
+
+    mu_assert(strcmp(ast[1].list.elements[1].list.elements[2].symbol, ":void*") == 0);
+
 }
 
 MU_TEST_SUITE(lisp_suite)
@@ -479,4 +527,6 @@ MU_TEST_SUITE(lisp_suite)
 
     // add type
     MU_RUN_TEST(test_add_type_declare);
+    MU_RUN_TEST(test_add_type_list);
+    MU_RUN_TEST(test_add_type_intermediate);
 }

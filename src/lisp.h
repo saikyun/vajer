@@ -447,17 +447,23 @@ void add_type_list(TypeState *state, AST *node)
             node->list.elements[1].symbol,
             node->list.elements[2].symbol);
     }
+    else if (strcmp(head.symbol, "var") == 0)
+    {
+        add_type(state, &node->list.elements[3]);
+        shput(
+            state->globals,
+            node->list.elements[1].symbol,
+            node->list.elements[2].symbol);
+    }
     else if (strcmp(head.symbol, "defn") == 0)
     {
         AST *args = node->list.elements[2].list.elements;
 
-        printf("defn: %s\n", node->list.elements[1].symbol);
-
-        for (int i = 0; i < arrlen(args); i += 2) {
+        for (int i = 0; i < arrlen(args); i += 2)
+        {
             AST sym = args[i];
             AST type = args[i + 1];
             shput(state->globals, sym.symbol, type.symbol);
-            printf("sym %s is type %s\n", sym.symbol, type.symbol);
         }
 
         for (int i = 4; i < arrlen(node->list.elements); i++)
@@ -471,8 +477,11 @@ void add_type_list(TypeState *state, AST *node)
         {
             add_type(state, &node->list.elements[i]);
         }
-        printf("HEHE: %s, type: %s\n", node->list.elements[1].symbol, node->list.elements[1].value_type);
-        node->list.elements[0].value_type = node->list.elements[1].value_type;
+        int len = strlen(node->list.elements[1].value_type);
+        node->value_type = (char *)malloc(len);
+        memcpy(node->value_type, node->list.elements[1].value_type, len);
+        // remove the ending *
+        node->value_type[len - 1] = '\0';
     }
     else
     {
@@ -480,6 +489,8 @@ void add_type_list(TypeState *state, AST *node)
         {
             add_type(state, &node->list.elements[i]);
         }
+
+        node->value_type = node->list.elements[0].value_type;
     }
 }
 
@@ -708,6 +719,7 @@ SymAST transform_var(CTransformState *state, AST *node)
 
     if (arrlen(node->list.elements) > 3)
     {
+        char *type = node->list.elements[3].value_type;
         SymAST value = transform(state, &node->list.elements[3]);
 
         if (value.sym == NULL)
@@ -720,7 +732,7 @@ SymAST transform_var(CTransformState *state, AST *node)
             node->list.elements[3] = symbol(value.sym);
             AST upscope = list4(
                 symbol("upscope"),
-                list3(symbol("var"), symbol(value.sym), value.ast.value_type == NULL ? symbol(":int") : symbol(value.ast.value_type)),
+                list3(symbol("var"), symbol(value.sym), value.ast.value_type == NULL ? symbol(type == NULL ? ":int" : type) : symbol(value.ast.value_type)),
                 value.ast,
                 *node);
             upscope.no_semicolon = true;
@@ -787,9 +799,10 @@ SymAST transform_funcall(CTransformState *state, AST *node)
 
     AST head = node->list.elements[0];
 
-    int returns_void = head.value_type != NULL && strcmp(head.value_type, ":void") == 0;
+    int returns_void = node->value_type != NULL && strcmp(node->value_type, ":void") == 0;
 
     AST new_funcall = list1(head);
+    new_funcall.value_type = node->value_type;
     AST upscope = list1(symbol("upscope"));
     upscope.no_semicolon = true;
 
@@ -818,7 +831,7 @@ SymAST transform_funcall(CTransformState *state, AST *node)
         arrpush(upscope.list.elements, new_funcall);
     }
 
-    upscope.value_type = head.value_type;
+    upscope.value_type = node->value_type;
 
     return (SymAST){.sym = returns_void ? NULL : sym, .ast = upscope};
 }
@@ -1380,7 +1393,7 @@ AST *gen_ast(char *code)
 
 void eval(char *code)
 {
-    int do_print = 1;
+    int do_print = 0;
 
     AST *transformed_nodes = gen_ast(code);
     if (do_print)
@@ -1454,4 +1467,4 @@ void compile_to_file(char *code, char *path)
     fclose(f);
 }
 
-#endif  
+#endif

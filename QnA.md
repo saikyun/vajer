@@ -552,5 +552,35 @@ Okay, I did that, and then there were some stuff with `in` that I had to fix. It
 
 I also need to move things around a bit, so that it's the node that gets the "unique" type, rather than each `in` symbol having a different type.
 
-* [ ] Change it so that the node has the return type, rather than the function
-* [ ] Remove a * at the end for the `in` type (it kinda has the type `T* -> T`)
+* [x] Change tests so that the node has the return type, rather than the function
+* [x] Fix test
+* [x] Write test for: Remove a * at the end for the `in` type (it kinda has the type `T* -> T`)
+* [x] Fix test
+
+Okay, phew, some things work better now. But intermediate symbols still are turned into `int` which is not fantastic. Like so:
+
+
+```clojure
+(var symbols :char** (malloc (* 5 (sizeof char*))))
+```
+
+turns into
+
+```c
+int gensym68;
+gensym68 = malloc((5 * sizeof(char*)));
+
+char** symbols = gensym68;
+```
+
+I should probably create a smaller test for this.
+
+* [x] Create test to check that the gensym gets type `:void*`
+* [x] Fix the test
+
+The game works again!!!
+
+I should probably go through the warnings, I think many of them have to do with int stuff.
+
+* [ ] Look at first warning
+* [ ] Write down a bit what causes it
