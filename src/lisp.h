@@ -485,6 +485,7 @@ void add_type_list(TypeState *state, AST *node)
     }
     else
     {
+        // function call
         for (int i = 0; i < arrlen(node->list.elements); i++)
         {
             add_type(state, &node->list.elements[i]);
@@ -867,7 +868,7 @@ SymAST transform_defn(CTransformState *state, AST *node)
         }
         else
         {
-            arrpush(new_defn.list.elements, list3(symbol("var"), symbol(res.sym), symbol(":int")));
+            arrpush(new_defn.list.elements, list3(symbol("var"), symbol(res.sym), symbol(node->list.elements[i].value_type == NULL ? ":int" : node->list.elements[i].value_type)));
             arrpush(new_defn.list.elements, res.ast);
         }
 

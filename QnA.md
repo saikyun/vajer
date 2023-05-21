@@ -582,5 +582,16 @@ The game works again!!!
 
 I should probably go through the warnings, I think many of them have to do with int stuff.
 
-* [ ] Look at first warning
-* [ ] Write down a bit what causes it
+* [x] Look at first warning
+* [x] Write down a bit what causes it
+
+```
+  int gensym37;
+  gensym37 = strchr(map, 0);
+
+  char* rrr = gensym37;
+```
+
+strchr returns a `char *`, so should probably just declare that.
+
+Fixed. I just needed some `declare`, and make sure that type was used in more places.

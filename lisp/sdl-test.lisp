@@ -9,7 +9,8 @@
 (declare SDL_CreateRenderer :SDL_Renderer*)
 (declare SDL_CreateWindow :SDL_Window*)
 (declare malloc :void*)
-
+(declare strchr :char*)
+(declare memset :void*)
 (declare srand :void)
 
 (defn draw-symbol
