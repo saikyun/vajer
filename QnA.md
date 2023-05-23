@@ -622,4 +622,20 @@ Would be nice if `if` didn't need random `0` at the end. I think this might need
 Strange bug with weird data. :O
 
 * [x] Run only the failing test
-* [ ] Write a function that can print the ast, with decent indentation and types
+* [x] Write a function that can print the ast, with decent indentation and types
+
+PHEW
+
+Now the game builds without stupid things like `(if x (do (void-func) 0))`!
+
+The code looks quite a bit like c but lisp. And that's great! That has been my goal for a while.
+
+I've also gotten to think about the types for a while, so I think I have some more ideas about what to do for type inferencing.
+
+I want to represent types using my ASTNode thing instead of chars, main reason being that some types, like function types, are better described as a list. I also don't want to represent lists as `:thing*`, but rather something like `[:thing]` or similar.
+
+I think the better printer helped me see the ast more clearly, so that was nice. It was fun to write as well.
+
+I think it will be helpful for when doing inferencing too.
+
+* [ ] Copy a function from sdl-test and write a "optimal" / ergonomic way of writing the same function
