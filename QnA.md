@@ -595,3 +595,31 @@ I should probably go through the warnings, I think many of them have to do with 
 strchr returns a `char *`, so should probably just declare that.
 
 Fixed. I just needed some `declare`, and make sure that type was used in more places.
+
+------------
+
+Would be nice if `if` didn't need random `0` at the end. I think this might need type inference stuff. Or possible explicit types first.
+
+* [x] Write a test for if that returns single type
+* [x] Fix test
+
+
+### TODO: this code puts return in wrong place:
+
+```
+(declare malloc :void*)
+
+(defn main [] :int
+  (if 1 (malloc 1))
+
+  (if 0 (malloc 1) (malloc 1337))
+
+  (var lul :int (if 0 1 2)))
+```
+
+--------------
+
+Strange bug with weird data. :O
+
+* [x] Run only the failing test
+* [ ] Write a function that can print the ast, with decent indentation and types

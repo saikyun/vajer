@@ -12,13 +12,18 @@
 (declare strchr :char*)
 (declare memset :void*)
 (declare srand :void)
+(declare time :int)
+(declare rand :int)
+(declare SDL_Init :int)
+(declare SDL_PollEvent :int)
+(declare SDL_RenderDrawPoint :void)
 
-(defn draw-symbol
+(defn draw_symbol
   [renderer :SDL_Renderer*
    symbols  :char**
-   symbol_i   :char
+   symbol_i :char
    x        :int
-   y        :int] :int
+   y        :int] :void
   (var symbol :char* (in symbols symbol_i))
   (var w :int 8)
   (var h :int 7)
@@ -29,113 +34,93 @@
     (while (< i w)
       (set c (+ symbol (+ i (* w j))))
       (if (== *c '.')
-      (do
         (SDL_RenderDrawPoint renderer (+ x i) (+ y j))
-        0)
       )
       (set i (+ i 1))
     )
     (set i 0)
     (set j (+ j 1))
   )
-  0
 )
 
-(defn move-boulder
+(defn move_boulder
   [map :char*
    mapw :int
    maph :int
-   from :int] :int
+   from :int] :void
   (var to :int (+ from mapw))
 
   (var lul :int 0)
   (while (< lul 1)
     (if (&& (== 0 (in map to))
-        (< to (* mapw maph))
-    )
-    (do
-      (printf "YOU DIED\n")
-      (set dead 1)
-      0))
+        (< to (* mapw maph)))
+      (do
+        (printf "YOU DIED\n")
+        (set dead 1)))
     (set lul 1))
 
   (put map from 1)
   (put map to 4)
-
-  0
 )
 
 (defn move
   [map :char*
    from :int
-   to :int] :int
+   to :int] :void
   (var thing :int (in map to))
 
   (var lul :int 0)
   (while (< lul 1)
     (if (== 4 thing)
-      (do
-        (printf "boulder! %d\n" gold)
-        0
-      )
+      (printf "boulder! %d\n" gold)
       (do
         (put map from 1)
         (put map to 0)
-        0
       )
-      )
+    )
     (set lul 1))
   
   (if (== 3 thing)
     (do
-    (set gold (+ gold 1))
-    (printf "gold! %d\n" gold)
-    0
+      (set gold (+ gold 1))
+      (printf "gold! %d\n" gold)
     )
-    
-    0
   ))
 
-(defn move-up
+(defn move_up
   [map :char*
    mapw :int
-   maph :int] :int
+   maph :int] :void
   (var rrr :char* (strchr map 0))
   (var pos :int (- rrr map))
   (if (>= (- pos mapw) 0)
-    (do
-      (move map pos (- pos mapw))
-      0))
-)
+    (move map pos (- pos mapw))))
 
-(defn move-left
+(defn move_left
   [map :char*
    mapw :int
-   maph :int] :int
+   maph :int] :void
   (var rrr :char* (strchr map 0))
   (var pos :int (- rrr map))
   (move map pos (- pos 1))
-  0
 )
 
-(defn move-right
+(defn move_right
   [map :char*
    mapw :int
-   maph :int] :int
+   maph :int] :void
   (var rrr :char* (strchr map 0))
   (var pos :int (- rrr map))
   (move map pos (+ pos 1))
-  0
 )
 
-(defn move-down
+(defn move_down
   [map :char*
    mapw :int
-   maph :int] :int
+   maph :int] :void
   (var rrr :char* (strchr map 0))
   (var pos :int (- rrr map))
   (move map pos (+ pos mapw))
-  0
 )
 
 (defn main [] :int
@@ -196,15 +181,11 @@
 
   (var symbols :char** (malloc (* 5 (sizeof char*))))
 
-  (set *symbols at)
-  (var ref :char** (+ symbols 1))
-  (set *ref blank)
-  (set ref (+ symbols 2))
-  (set *ref dot)
-  (set ref (+ symbols 3))
-  (set *ref gold)
-  (set ref (+ symbols 4))
-  (set *ref boulder)
+  (put symbols 0 at)
+  (put symbols 1 blank)
+  (put symbols 2 dot)
+  (put symbols 3 gold)
+  (put symbols 4 boulder)
 
   (var tilesize :int 8)
   (var mapw :int 8)
@@ -219,10 +200,7 @@
   (var i :int 0)
   (while (< i maplen)
     (if (< 15 (% (rand) 20))
-    (do
       (put map i 3)
-      0
-    )
     )
     (set i (+ i 1))
   )
@@ -230,9 +208,7 @@
   (var i2 :int 0)
   (while (< i2 maplen)
     (if (< 15 (% (rand) 20))
-    (do
       (put map i2 4)
-      0)
     )
     (set i2 (+ i2 1))
   )
@@ -253,53 +229,49 @@
   (var quit :int 1000000000)
   (var e :SDL_Event)
   (while (> quit 0)
-      (set quit (- quit 1 ))
-      (var res :int (SDL_PollEvent &e))
-      (if (!= res 0)
+    (set quit (- quit 1 ))
+    (var res :int (SDL_PollEvent &e))
+    (if (!= res 0)
+      (do
+        (if (== e.type SDL_QUIT)
+          (set quit 0))
+        (if (&& (== 0 dead)
+                (== e.type SDL_KEYDOWN))
           (do
-            (if (== e.type SDL_QUIT)
-            (do
-              (set quit 0)
-              0))
-            (if (&& (== 0 dead)
-                    (== e.type SDL_KEYDOWN))
-              (do
-                (if (== e.key.keysym.sym SDLK_w)
-                  (move_up map mapw maph))
-                (if (== e.key.keysym.sym SDLK_s)
-                  (move_down map mapw maph))
-                (if (== e.key.keysym.sym SDLK_a)
-                  (move_left map mapw maph))
-                (if (== e.key.keysym.sym SDLK_d)
-                  (move_right map mapw maph))
-                  0)
-            )
-            0
-          )
-      )
-
-      (SDL_SetRenderDrawColor renderer 0 0 0 255)
-      (SDL_RenderClear renderer)
-
-      (SDL_SetRenderDrawColor renderer 125 200 25 255)
-
-      # (draw_symbol renderer at 10 10)
-
-      (var x :int 0)
-      (var y :int 0)
-      (while (< y maph)
-        (while (< x mapw)
-          (var pos :int (+ x (* y mapw)))
-          (if (&& (== (in map pos) 4)
-                   (|| (== (in map (+ pos mapw)) 0)
-                       (== (in map (+ pos mapw)) 1)))
-            (move_boulder map mapw maph pos)
-          )
-          (draw_symbol renderer symbols (in map pos) (* x tilesize) (* y tilesize))
-          (set x (+ x 1))
+            (if (== e.key.keysym.sym SDLK_w)
+              (move_up map mapw maph))
+            (if (== e.key.keysym.sym SDLK_s)
+              (move_down map mapw maph))
+            (if (== e.key.keysym.sym SDLK_a)
+              (move_left map mapw maph))
+            (if (== e.key.keysym.sym SDLK_d)
+              (move_right map mapw maph)))
         )
-        (set x 0)
-        (set y (+ y 1)))
+      )
+    )
+
+    (SDL_SetRenderDrawColor renderer 0 0 0 255)
+    (SDL_RenderClear renderer)
+
+    (SDL_SetRenderDrawColor renderer 125 200 25 255)
+
+    # (draw_symbol renderer at 10 10)
+
+    (var x :int 0)
+    (var y :int 0)
+    (while (< y maph)
+      (while (< x mapw)
+        (var pos :int (+ x (* y mapw)))
+        (if (&& (== (in map pos) 4)
+                  (|| (== (in map (+ pos mapw)) 0)
+                      (== (in map (+ pos mapw)) 1)))
+          (move_boulder map mapw maph pos)
+        )
+        (draw_symbol renderer symbols (in map pos) (* x tilesize) (* y tilesize))
+        (set x (+ x 1))
+      )
+      (set x 0)
+      (set y (+ y 1)))
 
       (SDL_RenderPresent renderer)
   )
