@@ -130,16 +130,15 @@ MU_TEST(test_transform_if)
     ```
     */
 
-    const char *code = "(if (zero? n) 0 1)";
-    Token *tokens = tokenize(code, strlen(code));
-    AST *root_nodes = parse_all(code, tokens);
+    char *code = "(if (zero? n) 0 1)";
+    
     /*
     printf("\n");
     print_ast(root_nodes);
     printf("\n");
     */
 
-    AST *transformed_nodes = c_transform_all(root_nodes);
+    AST *transformed_nodes = gen_ast(code);
     /*
     printf("\n");
     for (int i = 0; i < arrlen(transformed_nodes); i++)
@@ -376,18 +375,17 @@ MU_TEST(test_add_type_declare)
     char *code = slurp("lisp/declare.lisp");
     AST *ast = gen_ast(code);
 
-    /*
+    /*    
     printf("\ntype info:\n");
     for (int i = 0; i < arrlen(ast); i++)
     {
         print_ast(&ast[i]);
-        printf(" type: %d\n", ast[i].value_type);
     }
     */
 
     // result of lule should have type void
     mu_assert(ast[1].list.elements[1].value_type != NULL);
-    mu_assert(strcmp(ast[1].list.elements[1].value_type, ":void") == 0);
+    mu_assert(ast_eq(ast[1].list.elements[1].value_type, &value_type_void));
 
     //    printf("\ncode:\n%s\n", c_compile_all(ast));
 }
@@ -402,17 +400,14 @@ MU_TEST(test_add_type_list)
     for (int i = 0; i < arrlen(ast); i++)
     {
         print_ast(&ast[i]);
-        printf(" type: %s\n", ast[i].value_type);
     }
 
-    // result of lule should have type void
     print_ast(&ast[1].list.elements[1].list.elements[2]);
-    printf(" typerr: %s\n", ast[1].list.elements[1].list.elements[2].value_type);
-    printf("\n");
     */
 
     mu_assert(ast[1].list.elements[1].list.elements[2].value_type != NULL);
-    mu_assert(strcmp(ast[1].list.elements[1].list.elements[2].value_type, ":char") == 0);
+    AST sym = symbol(":char");
+    mu_assert(ast_eq(ast[1].list.elements[1].list.elements[2].value_type, &sym));
 
     //    printf("\ncode:\n%s\n", c_compile_all(ast));
 }
@@ -427,14 +422,14 @@ MU_TEST(test_add_type_intermediate)
     for (int i = 0; i < arrlen(ast); i++)
     {
         print_ast(&ast[i]);
-        printf(" type: %s\n", ast[i].value_type);
     }
 
     printf("\ncode:\n%s\n", c_compile_all(ast));
-    printf("type: %s\n", ast[1].list.elements[1].list.elements[2].symbol);
+    print_ast(&ast[1].list.elements[1].list.elements[2]);
     */
 
-    mu_assert(strcmp(ast[1].list.elements[1].list.elements[2].symbol, ":void*") == 0);
+    AST sym = symbol(":void*");
+    mu_assert(ast_eq(&ast[1].list.elements[1].list.elements[2], &sym));
 }
 
 MU_TEST(test_add_type_if)
@@ -450,7 +445,6 @@ MU_TEST(test_add_type_if)
         for (int i = 0; i < arrlen(ast); i++)
         {
             print_ast(&ast[i]);
-            printf(" type: %s\n", ast[i].value_type);
         }
 
         printf("\ncode:\n%s\n", c_compile_all(ast));
@@ -462,11 +456,11 @@ MU_TEST(test_add_type_if)
         if (do_print)
         {
             print_ast(if_node);
-            printf(" type: %s\n", if_node->value_type);
         }
 
         mu_assert(if_node->value_type != NULL);
-        mu_assert(strcmp(if_node->value_type, ":void*") == 0);
+        AST sym = symbol(":void*");
+        mu_assert(ast_eq(if_node->value_type, &sym));
     }
 
     {
@@ -475,12 +469,13 @@ MU_TEST(test_add_type_if)
         if (do_print)
         {
             printf("second\n");
+            print_ast(&ast[2]);
             print_ast(if_node);
-            printf(" type: %s\n", if_node->value_type);
         }
 
         mu_assert(if_node->value_type != NULL);
-        mu_assert(strcmp(if_node->value_type, ":void*") == 0);
+        AST sym = symbol(":void*");
+        mu_assert(ast_eq(if_node->value_type, &sym));
     }
 
     {
@@ -490,11 +485,11 @@ MU_TEST(test_add_type_if)
         {
             printf("last\n");
             print_ast(if_node);
-            printf(" type: %s\n", if_node->value_type);
         }
 
         mu_assert(if_node->value_type != NULL);
-        mu_assert(strcmp(if_node->value_type, ":char*") == 0);
+        AST sym = symbol(":char*");
+        mu_assert(ast_eq(if_node->value_type, &sym));
     }
 
     eval(code);
