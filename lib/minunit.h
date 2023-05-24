@@ -163,7 +163,7 @@ static void (*minunit_teardown)(void) = NULL;
 #define mu_assert(test) MU__SAFE_BLOCK(\
 	minunit_assert++;\
 	if (!(test)) {\
-		snprintf(minunit_last_message, MINUNIT_MESSAGE_LEN, "\033[0;31m%s failed:\n\t%s:%d\033[0m", __func__, __FILE__, __LINE__);\
+		snprintf(minunit_last_message, MINUNIT_MESSAGE_LEN, "\e[0;31m%s\n\e[0;36m%s failed:\n\t%s:%d\e[0m", #test, __func__, __FILE__, __LINE__);\
 		minunit_status = 1;\
 		return;\
 	} else {\

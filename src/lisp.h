@@ -797,7 +797,12 @@ void add_type(TypeState *state, AST *node)
 
         if (type == NULL)
         {
-            if (strcmp(node->symbol, "+") == 0 || strcmp(node->symbol, "=") == 0 || strcmp(node->symbol, "<=") == 0 || strcmp(node->symbol, "*") == 0 || strcmp(node->symbol, "!=") == 0 || strcmp(node->symbol, "zero?") == 0 || strcmp(node->symbol, "-") == 0 || strcmp(node->symbol, "inc") == 0 || strcmp(node->symbol, "==") == 0 || strcmp(node->symbol, "&&") == 0 || strcmp(node->symbol, "<") == 0 || strcmp(node->symbol, ">=") == 0 || strcmp(node->symbol, "%") == 0 || strcmp(node->symbol, "||") == 0)
+            if (strcmp(node->symbol, "+") == 0)
+            {
+
+                node->value_type = &value_type_int;
+            }
+            if (strcmp(node->symbol, "=") == 0 || strcmp(node->symbol, "<=") == 0 || strcmp(node->symbol, "*") == 0 || strcmp(node->symbol, "!=") == 0 || strcmp(node->symbol, "zero?") == 0 || strcmp(node->symbol, "-") == 0 || strcmp(node->symbol, "inc") == 0 || strcmp(node->symbol, "==") == 0 || strcmp(node->symbol, "&&") == 0 || strcmp(node->symbol, "<") == 0 || strcmp(node->symbol, ">=") == 0 || strcmp(node->symbol, "%") == 0 || strcmp(node->symbol, "||") == 0)
             {
                 node->value_type = &value_type_int;
             }

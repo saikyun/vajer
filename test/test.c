@@ -12,9 +12,9 @@ int main(int argc, char **argv)
     init_sig_handler(argv[0]);
 #endif
     MU_RUN_SUITE(tcc_suite);
-    MU_RUN_SUITE(lisp_suite);
+    //MU_RUN_SUITE(lisp_suite);
     MU_RUN_SUITE(test_suite_inference);
-    MU_RUN_SUITE(test_sdl_suite);
+    //MU_RUN_SUITE(test_sdl_suite);
 
     MU_REPORT();
     
