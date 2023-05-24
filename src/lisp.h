@@ -247,7 +247,7 @@ typedef struct List
 
 typedef struct AST
 {
-    ASTType type;
+    ASTType ast_type;
     int no_semicolon;
     char *value_type;
     union
@@ -269,7 +269,7 @@ typedef struct ParseState
 
 void print_ast_old(AST *el)
 {
-    switch (el->type)
+    switch (el->ast_type)
     {
     case AST_SYMBOL:
         printf("%s", el->symbol);
@@ -308,7 +308,7 @@ void print_ast_old(AST *el)
     case AST_EMPTY:
         break;
     default:
-        printf("unhandled print: %d\n", el->type);
+        printf("unhandled print: %d\n", el->ast_type);
         assert(0);
     }
 }
@@ -370,7 +370,7 @@ void print_indent(int indent)
 
 void _print_ast(PrintASTState *state, AST *el)
 {
-    switch (el->type)
+    switch (el->ast_type)
     {
     case AST_SYMBOL:
         printf("%s", el->symbol);
@@ -468,7 +468,7 @@ void _print_ast(PrintASTState *state, AST *el)
     case AST_EMPTY:
         break;
     default:
-        printf("unhandled print: %d\n", el->type);
+        printf("unhandled print: %d\n", el->ast_type);
         assert(0);
     }
 
@@ -483,6 +483,7 @@ void print_ast(AST *el)
 {
     PrintASTState state = {};
     _print_ast(&state, el);
+    printf("\n");
 }
 
 AST parse(ParseState *state);
@@ -512,13 +513,13 @@ AST parse_list(ParseState *state, ListType list_type)
         }
 
         AST ast = parse(state);
-        if (ast.type != AST_EMPTY)
+        if (ast.ast_type != AST_EMPTY)
         {
             arrpush(list.elements, ast);
         }
     }
 
-    return (AST){.type = AST_LIST, .list = list};
+    return (AST){.ast_type = AST_LIST, .list = list};
 }
 
 AST parse(ParseState *state)
@@ -543,15 +544,15 @@ AST parse(ParseState *state)
 
         if (strcmp(sym, "true") == 0)
         {
-            return (AST){.type = AST_BOOLEAN, .boolean = 1, .value_type = ":int"};
+            return (AST){.ast_type = AST_BOOLEAN, .boolean = 1, .value_type = ":int"};
         }
         else if (strcmp(sym, "false") == 0)
         {
-            return (AST){.type = AST_BOOLEAN, .boolean = 0, .value_type = ":int"};
+            return (AST){.ast_type = AST_BOOLEAN, .boolean = 0, .value_type = ":int"};
         }
         else
         {
-            return (AST){.type = AST_SYMBOL, .symbol = sym};
+            return (AST){.ast_type = AST_SYMBOL, .symbol = sym};
         }
     }
     else if (token.type == TOKEN_STRING)
@@ -561,7 +562,7 @@ AST parse(ParseState *state)
         char *str = (char *)malloc(sizeof(char) * (len + 1));
         str[len] = '\0';
         memcpy(str, state->code + token.start + 1, len);
-        return (AST){.type = AST_STRING, .value_type = ":char*", .symbol = str};
+        return (AST){.ast_type = AST_STRING, .value_type = ":char*", .symbol = str};
     }
     else if (token.type == TOKEN_NUMBER)
     {
@@ -573,12 +574,12 @@ AST parse(ParseState *state)
         {
             num += (state->code[token.stop - i - 1] - '0') * pow(10, i);
         }
-        return (AST){.type = AST_NUMBER, .value_type = ":int", .number = negative_number ? -num : num};
+        return (AST){.ast_type = AST_NUMBER, .value_type = ":int", .number = negative_number ? -num : num};
     }
     else if (token.type == TOKEN_WHITESPACE || token.type == TOKEN_NEWLINE || token.type == TOKEN_COMMENT)
     {
         state->pos++;
-        return (AST){.type = AST_EMPTY};
+        return (AST){.ast_type = AST_EMPTY};
     }
     else
     {
@@ -596,7 +597,7 @@ AST *parse_all(const char *code, Token *tokens)
     while (state.pos < arrlen(tokens))
     {
         AST ast = parse(&state);
-        if (ast.type != AST_EMPTY)
+        if (ast.ast_type != AST_EMPTY)
         {
             arrpush(root_nodes, ast);
         }
@@ -636,7 +637,7 @@ void add_type_list(TypeState *state, AST *node)
     }
 
     AST head = node->list.elements[0];
-    assert(head.type = AST_SYMBOL);
+    assert(head.ast_type = AST_SYMBOL);
 
     if (strcmp(head.symbol, "declare") == 0)
     {
@@ -656,11 +657,7 @@ void add_type_list(TypeState *state, AST *node)
     else if (strcmp(head.symbol, "if") == 0)
     {
         default_add_types_recurse(state, node);
-
         node->value_type = node->list.elements[2].value_type;
-        print_ast(node);
-        printf(" type: %s\n", node->list.elements[2].value_type);
-        printf(" ---\n");
     }
     else if (strcmp(head.symbol, "defn") == 0)
     {
@@ -683,12 +680,8 @@ void add_type_list(TypeState *state, AST *node)
     }
     else if (strcmp(head.symbol, "do") == 0)
     {
-        printf("adding types to do\n");
-
         default_add_types_recurse(state, node);
-
         node->value_type = arrlast(node->list.elements).value_type;
-        printf("final do type -- type: %s\n\n", node->value_type);
     }
     else if (strcmp(head.symbol, "set") == 0)
     {
@@ -717,18 +710,14 @@ void add_type_list(TypeState *state, AST *node)
     }
     else
     { // function call
-        printf("function call\n");
-        print_ast(node);
-        printf("\n");
         default_add_types_recurse(state, node);
-
         node->value_type = node->list.elements[0].value_type;
     }
 }
 
 void add_type(TypeState *state, AST *node)
 {
-    switch (node->type)
+    switch (node->ast_type)
     {
     case AST_LIST:
         add_type_list(state, node);
@@ -742,7 +731,6 @@ void add_type(TypeState *state, AST *node)
             if (strcmp(node->symbol, "+") == 0 || strcmp(node->symbol, "=") == 0 || strcmp(node->symbol, "<=") == 0 || strcmp(node->symbol, "*") == 0 || strcmp(node->symbol, "!=") == 0 || strcmp(node->symbol, "zero?") == 0 || strcmp(node->symbol, "-") == 0 || strcmp(node->symbol, "inc") == 0 || strcmp(node->symbol, "==") == 0 || strcmp(node->symbol, "&&") == 0 || strcmp(node->symbol, "<") == 0 || strcmp(node->symbol, ">=") == 0 || strcmp(node->symbol, "%") == 0 || strcmp(node->symbol, "||") == 0)
             {
                 node->value_type = ":int";
-                printf("symbol: '%s', type: %s\n", node->symbol, node->value_type);
             }
         }
         else
@@ -763,8 +751,6 @@ AST *add_type_all(AST *ast)
 
     for (int i = 0; i < arrlen(ast); i++)
     {
-        printf("adding type to...\n");
-        print_ast(&ast[i]);
         add_type(&state, &ast[i]);
     }
 
@@ -798,7 +784,7 @@ AST list1(AST n1)
 {
     AST *els = NULL;
     arrpush(els, n1);
-    return (AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
+    return (AST){.ast_type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
 }
 
 AST list2(AST n1, AST n2)
@@ -806,7 +792,7 @@ AST list2(AST n1, AST n2)
     AST *els = NULL;
     arrpush(els, n1);
     arrpush(els, n2);
-    return (AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
+    return (AST){.ast_type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
 }
 
 AST list3(AST n1, AST n2, AST n3)
@@ -815,7 +801,7 @@ AST list3(AST n1, AST n2, AST n3)
     arrpush(els, n1);
     arrpush(els, n2);
     arrpush(els, n3);
-    return (AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
+    return (AST){.ast_type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
 }
 
 AST list4(AST n1, AST n2, AST n3, AST n4)
@@ -825,7 +811,7 @@ AST list4(AST n1, AST n2, AST n3, AST n4)
     arrpush(els, n2);
     arrpush(els, n3);
     arrpush(els, n4);
-    return (AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
+    return (AST){.ast_type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
 }
 
 AST list5(AST n1, AST n2, AST n3, AST n4, AST n5)
@@ -836,12 +822,12 @@ AST list5(AST n1, AST n2, AST n3, AST n4, AST n5)
     arrpush(els, n3);
     arrpush(els, n4);
     arrpush(els, n5);
-    return (AST){.type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
+    return (AST){.ast_type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
 }
 
 AST symbol(char *sym)
 {
-    return (AST){.type = AST_SYMBOL, .symbol = sym};
+    return (AST){.ast_type = AST_SYMBOL, .symbol = sym};
 }
 
 SymAST transform(CTransformState *state, AST *node);
@@ -876,17 +862,14 @@ SymAST transform_if(CTransformState *state, AST *node)
         if (branch
                 .ast.value_type == NULL)
         {
-            printf("missing type: %d\n", branch.ast.type);
+            printf("missing type: %d\n", branch.ast.ast_type);
             print_ast(&branch.ast);
             printf("\n");
             assert(NULL);
         }
 
-        print_ast(&branch.ast);
-        printf("\nreeee\n\n\n\n\ntype: %s\n", branch.ast.value_type);
         if (strcmp(branch.ast.value_type, ":void") == 0)
         {
-            printf("\nVOIDER\n");
             node->list.elements[2] = branch.ast;
         }
         else if (branch.sym != NULL)
@@ -910,17 +893,14 @@ SymAST transform_if(CTransformState *state, AST *node)
             SymAST branch = transform(state, &node->list.elements[3]);
             if (branch.ast.value_type == NULL)
             {
-                printf("missing type: %d\n", branch.ast.type);
+                printf("missing type: %d\n", branch.ast.ast_type);
                 print_ast(&branch.ast);
                 printf("\n");
                 assert(NULL);
             }
 
-            print_ast(&branch.ast);
-            printf("\nreeee\n\n\n\n\ntype: %s\n", branch.ast.value_type);
             if (strcmp(branch.ast.value_type, ":void") == 0)
             {
-                printf("\nVOIDER\n");
                 node->list.elements[3] = branch.ast;
             }
             else if (branch.sym != NULL)
@@ -1022,7 +1002,7 @@ SymAST transform_var(CTransformState *state, AST *node)
 
         if (value.ast.value_type == NULL)
         {
-            printf("var missing type: %d\n", value.ast.type);
+            printf("var missing type: %d\n", value.ast.ast_type);
             print_ast(&value.ast);
             printf("\n");
             assert(NULL);
@@ -1106,7 +1086,7 @@ SymAST transform_funcall(CTransformState *state, AST *node)
 
     if (node->value_type == NULL)
     {
-        printf("missing type: %d\n", node->type);
+        printf("missing type: %d\n", node->ast_type);
         print_ast(node);
         printf("\n");
         assert(NULL);
@@ -1146,8 +1126,6 @@ SymAST transform_funcall(CTransformState *state, AST *node)
         arrpush(upscope.list.elements, new_funcall);
     }
 
-    print_ast(node);
-    printf("\n");
     assert(node->value_type != NULL);
     upscope.value_type = node->value_type;
 
@@ -1170,7 +1148,7 @@ SymAST transform_defn(CTransformState *state, AST *node)
         AST type = args[i + 1];
         arrpush(new_args, list2(type, sym));
     }
-    AST na = (AST){.type = AST_LIST, .list = (List){.type = LIST_BRACKETS, .elements = new_args}};
+    AST na = (AST){.ast_type = AST_LIST, .list = (List){.type = LIST_BRACKETS, .elements = new_args}};
     arrpush(new_defn.list.elements, na);
 
     arrpush(new_defn.list.elements, node->list.elements[3]);
@@ -1216,7 +1194,7 @@ SymAST transform_list(CTransformState *state, AST *node)
     case LIST_PARENS:
     {
         AST head = node->list.elements[0];
-        assert(head.type == AST_SYMBOL);
+        assert(head.ast_type == AST_SYMBOL);
         if (strcmp(head.symbol, "if") == 0)
         {
             return transform_if(state, node);
@@ -1280,7 +1258,7 @@ SymAST transform_list(CTransformState *state, AST *node)
 
 SymAST transform(CTransformState *state, AST *node)
 {
-    switch (node->type)
+    switch (node->ast_type)
     {
     case AST_LIST:
     {
@@ -1484,7 +1462,7 @@ void c_compile_var(CCompilationState *state, AST node)
 
     AST sym = node.list.elements[1];
     AST type = node.list.elements[2];
-    assert(sym.type == AST_SYMBOL);
+    assert(sym.ast_type == AST_SYMBOL);
     strstr(&state->source, type.symbol + 1, " ", sym.symbol);
 
     if (arrlen(node.list.elements) > 3)
@@ -1497,7 +1475,7 @@ void c_compile_var(CCompilationState *state, AST node)
 void c_compile_set(CCompilationState *state, AST node)
 {
     AST sym = node.list.elements[1];
-    assert(sym.type == AST_SYMBOL);
+    assert(sym.ast_type == AST_SYMBOL);
     strstr(&state->source, sym.symbol, " = ");
     c_compile(state, node.list.elements[2]);
 }
@@ -1505,7 +1483,7 @@ void c_compile_set(CCompilationState *state, AST node)
 void c_compile_in(CCompilationState *state, AST node)
 {
     AST sym = node.list.elements[1];
-    assert(sym.type == AST_SYMBOL);
+    assert(sym.ast_type == AST_SYMBOL);
     strstr(&state->source, sym.symbol, "[");
     c_compile(state, node.list.elements[2]);
     strstr(&state->source, "]");
@@ -1514,7 +1492,7 @@ void c_compile_in(CCompilationState *state, AST node)
 void c_compile_put(CCompilationState *state, AST node)
 {
     AST sym = node.list.elements[1];
-    assert(sym.type == AST_SYMBOL);
+    assert(sym.ast_type == AST_SYMBOL);
     strstr(&state->source, sym.symbol, "[");
     c_compile(state, node.list.elements[2]);
     strstr(&state->source, "] = ");
@@ -1537,7 +1515,7 @@ void c_compile_list(CCompilationState *state, AST node)
     case LIST_PARENS:
     {
         AST head = node.list.elements[0];
-        assert(head.type == AST_SYMBOL);
+        assert(head.ast_type == AST_SYMBOL);
 
         if (strcmp(head.symbol, "if") == 0)
         {
@@ -1577,7 +1555,7 @@ void c_compile_list(CCompilationState *state, AST node)
         }
         else if (strcmp(head.symbol, "zero?") == 0)
         {
-            return c_compile_infix(state, node.list.elements[1], "==", (AST){.type = AST_NUMBER, .number = 0, .value_type = ":int"});
+            return c_compile_infix(state, node.list.elements[1], "==", (AST){.ast_type = AST_NUMBER, .number = 0, .value_type = ":int"});
         }
         else if (strcmp(head.symbol, "<=") == 0 || strcmp(head.symbol, ">=") == 0 || strcmp(head.symbol, ">") == 0 || strcmp(head.symbol, "<") == 0 || strcmp(head.symbol, "!=") == 0 || strcmp(head.symbol, "==") == 0 || strcmp(head.symbol, "*") == 0 || strcmp(head.symbol, "+") == 0 || strcmp(head.symbol, "-") == 0 || strcmp(head.symbol, "%") == 0 || strcmp(head.symbol, "&&") == 0 || strcmp(head.symbol, "||") == 0)
         {
@@ -1608,7 +1586,7 @@ void c_compile_list(CCompilationState *state, AST node)
 
 void c_compile(CCompilationState *state, AST node)
 {
-    switch (node.type)
+    switch (node.ast_type)
     {
     case AST_LIST:
     {
@@ -1679,7 +1657,7 @@ char *c_compile_all(AST *from)
 
 AST *gen_ast(char *code)
 {
-    int do_print = 1;
+    int do_print = 0;
     Token *tokens = tokenize(code, strlen(code));
     AST *root_nodes = parse_all(code, tokens);
 
@@ -1752,7 +1730,7 @@ void eval(char *code)
 
 void compile_to_file(char *code, char *path)
 {
-    int do_print = 1;
+    int do_print = 0;
 
     AST *transformed_nodes = gen_ast(code);
     if (do_print)

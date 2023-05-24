@@ -110,7 +110,7 @@ MU_TEST(test_parse_defn)
         }
     */
 
-    mu_assert(root_nodes[0].type == AST_LIST);
+    mu_assert(root_nodes[0].ast_type == AST_LIST);
 }
 
 MU_TEST(test_transform_if)
@@ -245,10 +245,10 @@ MU_TEST(test_compile_defn)
     */
 
     char *code = "(defn fac [n :int] :int\n"
-                       "  (if (<= n 1)\n"
-                       "    1\n"
-                       "    (* n (fac (- n 1)))))";
-    
+                 "  (if (<= n 1)\n"
+                 "    1\n"
+                 "    (* n (fac (- n 1)))))";
+
     AST *transformed_nodes = gen_ast(code);
 
     char *source = c_compile_all(transformed_nodes);
@@ -277,7 +277,7 @@ MU_TEST(test_compile_two_types)
         "(defn strlen-plus-n [str :string num :int] :int\n"
         "  (+ num (strlen str))\n"
         ")";
-        
+
     AST *transformed_nodes = gen_ast(code);
     /*
     printf("\n");
@@ -439,23 +439,31 @@ MU_TEST(test_add_type_intermediate)
 
 MU_TEST(test_add_type_if)
 {
+    int do_print = 0;
+
     char *code = slurp("lisp/if.lisp");
     AST *ast = gen_ast(code);
 
-    printf("\ntype info:\n");
-    for (int i = 0; i < arrlen(ast); i++)
+    if (do_print)
     {
-        print_ast(&ast[i]);
-        printf(" type: %s\n", ast[i].value_type);
-    }
+        printf("\ntype info:\n");
+        for (int i = 0; i < arrlen(ast); i++)
+        {
+            print_ast(&ast[i]);
+            printf(" type: %s\n", ast[i].value_type);
+        }
 
-    printf("\ncode:\n%s\n", c_compile_all(ast));
+        printf("\ncode:\n%s\n", c_compile_all(ast));
+    }
 
     {
         AST *if_node = &ast[2].list.elements[5].list.elements[1];
 
-        print_ast(if_node);
-        printf(" type: %s\n", if_node->value_type);
+        if (do_print)
+        {
+            print_ast(if_node);
+            printf(" type: %s\n", if_node->value_type);
+        }
 
         mu_assert(if_node->value_type != NULL);
         mu_assert(strcmp(if_node->value_type, ":void*") == 0);
@@ -464,9 +472,12 @@ MU_TEST(test_add_type_if)
     {
         AST *if_node = &ast[2].list.elements[7].list.elements[1];
 
-        printf("second\n");
-        print_ast(if_node);
-        printf(" type: %s\n", if_node->value_type);
+        if (do_print)
+        {
+            printf("second\n");
+            print_ast(if_node);
+            printf(" type: %s\n", if_node->value_type);
+        }
 
         mu_assert(if_node->value_type != NULL);
         mu_assert(strcmp(if_node->value_type, ":void*") == 0);
@@ -475,9 +486,12 @@ MU_TEST(test_add_type_if)
     {
         AST *if_node = &ast[2].list.elements[8].list.elements[2].list.elements[1];
 
-        printf("last\n");
-        print_ast(if_node);
-        printf(" type: %s\n", if_node->value_type);
+        if (do_print)
+        {
+            printf("last\n");
+            print_ast(if_node);
+            printf(" type: %s\n", if_node->value_type);
+        }
 
         mu_assert(if_node->value_type != NULL);
         mu_assert(strcmp(if_node->value_type, ":char*") == 0);
@@ -510,7 +524,7 @@ MU_TEST_SUITE(lisp_suite)
     MU_RUN_TEST(test_compile_if);
     MU_RUN_TEST(test_compile_defn);
     MU_RUN_TEST(test_compile_two_types);
-    
+
     MU_RUN_TEST(test_compile_while);
     MU_RUN_TEST(test_compile_set_if);
 }

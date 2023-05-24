@@ -446,13 +446,13 @@ I'll have to check my kickstart-sdl repo to see what should be done next.
 
 ### Do I want def, or let, or something let-like that can hande errors etc?
 
-# TODO: I probably need to solve running transform on arguments of function calls.
+[x] DONE: I probably need to solve running transform on arguments of function calls.
 
-# TODO: I need to know types of ast nodes
+[x] DONE: I need to know types of ast nodes
 
 It seems that for SDL to work on macos, I'm going to need while loops and void if-statements. Gotta fix that then!
 
-# TODO: This code breaks because of `if` wanting to set a parent's (defn's) return value
+[x] done: This code breaks because of `if` wanting to set a parent's (defn's) return value
 
 ```
 (defn move-up
@@ -493,7 +493,7 @@ Falling boulders.
 
 
 
-[x] TODO: `(var x :int (if ...))` doesn't work -- in general things are not transformed recursively. need to fix :)
+[x] done: `(var x :int (if ...))` doesn't work -- in general things are not transformed recursively. need to fix :)
 
 * [x] try running transform recursively
 
@@ -508,7 +508,7 @@ Now it behaves a bit better, but the output is kinda shitty.
 Funcall should probably not always end up in a gensym. :O
 ...Or maybe it should.
 
-# TODO: Don't set result of void expressions to a varible :O
+[x] done: Don't set result of void expressions to a varible :O
 
 I'd need types somewhere, and then code to somehow figure "hey, this type is void, let's not set stuff that is void".
 
@@ -639,3 +639,149 @@ I think the better printer helped me see the ast more clearly, so that was nice.
 I think it will be helpful for when doing inferencing too.
 
 * [ ] Copy a function from sdl-test and write a "optimal" / ergonomic way of writing the same function
+
+Current:
+```clojure
+(defn draw_symbol
+  [renderer :SDL_Renderer*
+   symbols  :char**
+   symbol_i :char
+   x        :int
+   y        :int] :void
+  (var symbol :char* (in symbols symbol_i))
+  (var w :int 8)
+  (var h :int 7)
+  (var c :char*)
+  (var i :int 0)
+  (var j :int 0)
+  (while (< j h)
+    (while (< i w)
+      (set c (+ symbol (+ i (* w j))))
+      (if (== *c '.')
+        (SDL_RenderDrawPoint renderer (+ x i) (+ y j))
+      )
+      (set i (+ i 1))
+    )
+    (set i 0)
+    (set j (+ j 1))
+  )
+)
+```
+
+Nice:
+```clojure
+(defn draw-symbol [renderer symbol {x y}]
+  (let [w 8, h 7]
+    (loop [xi :range [0 w]
+           yi :range [0 h]
+           c  :let   (in symbol (+ xi (* yi w)))
+           :when (= c '.')]
+      (sdl/render-draw-point renderer (+ x xi) (+ y yi))
+    )
+  )
+)
+```
+
+Not sure if I want `(let [...] ...)` or `(def [...]) ...`
+
+Not sure if I want `x :let y` or `:let [x y]`.
+
+All in all I'm pretty happy with the new version of the function. What would definitely be needed are:
+* Type inference
+* Macros (though as far as I can see, the macros don't need to know types beforehand)
+
+The idea is also that types could be explicitly written, but inference should deal with this. + says x and y are numbers. `in` says `symbol` is a list of some sort, `sdl/render-draw-point` says `renderer` is a `SDL_Renderer*`.
+
+Could I make it even nicer?
+
+The loop is kinda explicit maybe, some way of looping over x/y might make sense. Or over a list but with width and height and get the elements.
+
+```clojure
+(defn draw-symbol [renderer symbol {x y}]
+  (coord-loop symbol 8
+    (fn [c {:x xi, :y yi}]
+      (if (= c '.')
+        (sdl/render-draw-point renderer (+ x xi) (+ y yi)))))
+)
+```
+
+Something like this might work. Like an indexed map but with coordinates rather than an index. I think this would be defined as a user though, not the core library.
+
+Let's write one example where I don't have the macros/structs:
+```clojure
+(defn draw-symbol [renderer symbol x y]
+  (var w 8)
+  (var h 7)
+  (var xi 0)
+  (var yi 0)
+  (while (< yi h)
+    (while (< xi w)
+      (var c (in symbol (+ xi (* yi w))))
+      (if (= c '.')
+        (sdl/render-draw-point renderer (+ x xi) (+ y yi)))
+      (set xi (inc xi))
+    )
+    (set yi (inc yi))
+  ))
+```
+
+What's missing?
+* Types on the args
+* Types on var
+
+How to fix types?
+
+For the vars, the w h xi yi are easy, because I have a literal right there. I could just make the rule "the var symbol gets the type of the next expression".
+
+It's harder for c though. It would need to keep the type of symbol in mind, and figure out it's own type when symbol has its type.
+
+Which leads to the arguments. renderer would have to infer from render-draw-point. x and y from +. symbol is the most abstract, I guess it would have to infer through c through the type of comparing to '.', which might be "any".
+
+I have to think a bit about how I'd like the C code to look as well. Let's try writing it out.
+
+```
+void draw_symbol(SDL_Renderer *renderer, List symbol, int x, int y) {
+  int w = 8;
+  int h = 7;
+  int xi = 0;
+  int yi = 0;
+  while (yi < h) {
+    while (xi < w) {
+      void *c = list_in(symbol, (xi + (yi * w)));
+      if (eq(c, '.')) {
+        SDL_RenderDrawPoint(renderer, (x + xi), (y + yi));
+      }
+      xi = xi + 1;
+    }
+    yi = yi + 1;
+  }
+}
+```
+
+Main question here is equality. Should it use c's ==, or should I define it myself? The alternative would be something like this:
+
+```
+void draw_symbol(SDL_Renderer *renderer, List symbol, int x, int y) {
+  int w = 8;
+  int h = 7;
+  int xi = 0;
+  int yi = 0;
+  while (yi < h) {
+    while (xi < w) {
+      char c = (char)list_in(symbol, (xi + (yi * w)));
+      if (c == '.') {
+        SDL_RenderDrawPoint(renderer, (x + xi), (y + yi));
+      }
+      xi = xi + 1;
+    }
+    yi = yi + 1;
+  }
+}
+```
+
+I guess it doesn't matter that much. It mostly matters in the sense that either I can have some generic types, that fulfill an interface (such as "comparable"), or I must figure out the type before generating this code. Either when the code is called, checking the type of the list then, or explicitly expressing the type in the defn call.
+
+I think I can punt on that issue for a bit, and just go ahead with some basic type inference for now. Perhaps doing a little at the time.
+
+* [ ] Write a test that should be type inferenced
+* [ ] Implement it
