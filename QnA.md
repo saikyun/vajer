@@ -670,11 +670,11 @@ Current:
 
 Nice:
 ```clojure
-(defn draw-symbol [renderer symbol {x y}]
+(defn draw-symbol [renderer symbol {x, y}]
   (let [w 8, h 7]
     (loop [xi :range [0 w]
            yi :range [0 h]
-           c  :let   (in symbol (+ xi (* yi w)))
+           :let [c (in symbol (+ xi (* yi w)))]
            :when (= c '.')]
       (sdl/render-draw-point renderer (+ x xi) (+ y yi))
     )
@@ -783,5 +783,157 @@ I guess it doesn't matter that much. It mostly matters in the sense that either 
 
 I think I can punt on that issue for a bit, and just go ahead with some basic type inference for now. Perhaps doing a little at the time.
 
-* [ ] Write a test that should be type inferenced
+* [x] Write a test that should be type inferenced
 * [ ] Implement it
+
+I've managed to do some basic inferencing, but I think I should go through the tests on here as well: https://github.com/eliben/paip-in-clojure/blob/master/src/paip/11_logic/unification_test.clj
+
+* [x] Write the first test and try to run it
+
+I wrote a bunch of the tests, and now things works. I messed up a bit because returning 0 from unify meant both failure and just that the hashmap was empty. I changed this to use an out variable instead.
+
+Now I need to do the rest of the steps here https://eli.thegreenplace.net/2018/type-inference/
+
+> 1. Assign symbolic type names (like t1, t2, ...) to all subexpressions.
+> 2. Using the language's typing rules, write a list of type equations (or constraints) in terms of these type names.
+> 3. Solve the list of type equations using unification.
+
+Go through all the stuff and assign type names.
+
+* [*] Write a test for `assign_type_names` that returns a hashmap from char* symbol to AST
+* [*] Implement it
+
+The function isn't really complete, but it's a start. Now I need to generate the list of type equations.
+
+```
++               ?t0
+x               ?t1
+y               ?t2
+(+ x x y)       ?t3
+```
+
+Should become:
+```
+(get +) = ((get x) (get x) (get y) -> ?t3)
+v
+?t0 = (?t1 ?t1 ?t2 -> ?t3)
+```
+
+* [x] Implement the above
+
+```
++ = ?t0
+x = ?t1
+y = ?t2
+?t0 = (?t1 ?t1 ?t2 -> ?t3)
+```
+
+
+# TODO: In add_type, AST_LIST value type -- maybe this shouldn't be null?
+
+* [x] Run unification on the result
+
+
+Eyy it works on some fancy stuff now (test/inference/adder.lisp).
+
+Next step is doing the C transformation and compilation steps. My main problem atm is figuring out if the types should live in the value_type or next to the symbols. E.g.:
+
+```
+(var x :int 10)
+```
+or this with x being :int implicitly
+```
+(var x 10)
+```
+
+I think that it might make sense to transform the code into the first variant. Another question though is how explicit types should look.
+
+```
+(defn adder
+  [x :int y :int] :int
+  (+ x y))
+```
+
+This doesn't really work, because :int could be a value rather than a type. Solutions:
+1. Move return type before the arguments
+2. Make special syntax for types
+3. Connect types with the symbol e.g. `x:int`
+
+```
+(defn adder :int
+  [x :int y :int]
+  (+ x y))
+```
+
+Other situation:
+
+```
+(var x :int 10)
+```
+
+I guess in this case it could just see that the number of arguments are 4.
+What about multiple declarations?
+
+```
+(var x :int 10
+     y :int 20)
+```
+
+This wouldn't really work. Though I don't know if you ever want explicit types on `var`s. Maybe one would do it with casting instead.
+
+```
+(var x (cast 5.2 :int))
+```
+
+That looks all right.
+
+As for special syntax, I like : for types, but it's a classic to keep those as keywords. Clojure does the ^int, which I think looks weird. Let's just try some random alternatives:
+
+```
+(declare adder [:int :int] :int)
+(defn adder
+  [x y]
+  (+ x y))
+```
+
+Types declared separately, haskell style.
+
+```
+(defn adder
+  [x ^int y ^int] ^int
+  (+ x y))
+```
+
+Clojure look, but clojure has the type come before the symbol.
+
+```
+(defn adder
+  [x \int y \int] \int
+  (+ x y))
+```
+
+I think I just kinda like the idea of types being keywords. Nothing mystical about them. Another question then, is how to express more complicated types.
+
+```
+# list
+:int[]
+:[int]
+:list<int>
+[:int]
+
+set
+#{:int}
+
+union
+@{:int | :string}
+
+dictionary
+{:int age, :string name, [:Cat] cats}
+{age :int, name :string, cats [:Cat]}
+{age :int, name :string, cats :[Cat]}
+```
+
+I think for now I want it to convert to the explicit types, so let's just do that.
+
+* [ ] Write a test that tests for transforming an inferred function to an explicit one
+* [ ] Implement the transformation

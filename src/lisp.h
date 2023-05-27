@@ -1,5 +1,4 @@
-#ifndef LISP_H
-#define LISP_H
+#pragma once
 
 #include <ctype.h>
 #define STB_DS_IMPLEMENTATION
@@ -267,102 +266,6 @@ typedef struct ParseState
     int pos;
 } ParseState;
 
-AST list1(AST n1)
-{
-    AST *els = NULL;
-    arrpush(els, n1);
-    return (AST){.ast_type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
-}
-
-AST list2(AST n1, AST n2)
-{
-    AST *els = NULL;
-    arrpush(els, n1);
-    arrpush(els, n2);
-    return (AST){.ast_type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
-}
-
-AST list3(AST n1, AST n2, AST n3)
-{
-    AST *els = NULL;
-    arrpush(els, n1);
-    arrpush(els, n2);
-    arrpush(els, n3);
-    return (AST){.ast_type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
-}
-
-AST list4(AST n1, AST n2, AST n3, AST n4)
-{
-    AST *els = NULL;
-    arrpush(els, n1);
-    arrpush(els, n2);
-    arrpush(els, n3);
-    arrpush(els, n4);
-    return (AST){.ast_type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
-}
-
-AST list5(AST n1, AST n2, AST n3, AST n4, AST n5)
-{
-    AST *els = NULL;
-    arrpush(els, n1);
-    arrpush(els, n2);
-    arrpush(els, n3);
-    arrpush(els, n4);
-    arrpush(els, n5);
-    return (AST){.ast_type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
-}
-
-AST symbol(char *sym)
-{
-    return (AST){.ast_type = AST_SYMBOL, .symbol = sym};
-}
-
-void print_ast_old(AST *el)
-{
-    switch (el->ast_type)
-    {
-    case AST_SYMBOL:
-        printf("%s", el->symbol);
-        break;
-    case AST_STRING:
-        printf("\"%s\"", el->string);
-        break;
-    case AST_NUMBER:
-        printf("%d", el->number);
-        break;
-    case AST_BOOLEAN:
-        printf("%s", el->boolean == 0 ? "false" : "true");
-        break;
-    case AST_LIST:
-        if (el->list.type == LIST_PARENS)
-            printf("(");
-        else if (el->list.type == LIST_BRACKETS)
-            printf("[");
-
-        for (int i = 0; i < arrlen(el->list.elements); i++)
-        {
-            print_ast_old(&el->list.elements[i]);
-
-            if (i < arrlen(el->list.elements) - 1)
-            {
-                printf(" ");
-            }
-        }
-
-        if (el->list.type == LIST_PARENS)
-            printf(")");
-        else if (el->list.type == LIST_BRACKETS)
-            printf("]");
-
-        break;
-    case AST_EMPTY:
-        break;
-    default:
-        printf("unhandled print: %d\n", el->ast_type);
-        assert(0);
-    }
-}
-
 typedef struct PrintASTState
 {
     int indentation;
@@ -530,11 +433,73 @@ void _print_ast(PrintASTState *state, AST *el)
     }
 }
 
-void print_ast(AST *el)
+void prin_ast(AST *el)
 {
     PrintASTState state = {};
     _print_ast(&state, el);
+}
+
+void print_ast(AST *el)
+{
+    prin_ast(el);
     printf("\n");
+}
+
+AST list1(AST n1)
+{
+    AST *els = NULL;
+    arrpush(els, n1);
+    return (AST){.ast_type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
+}
+
+AST list2(AST n1, AST n2)
+{
+    AST *els = NULL;
+    arrpush(els, n1);
+    arrpush(els, n2);
+    return (AST){.ast_type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
+}
+
+AST list3(AST n1, AST n2, AST n3)
+{
+    AST *els = NULL;
+    arrpush(els, n1);
+    arrpush(els, n2);
+    arrpush(els, n3);
+    return (AST){.ast_type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
+}
+
+AST list4(AST n1, AST n2, AST n3, AST n4)
+{
+    AST *els = NULL;
+    arrpush(els, n1);
+    arrpush(els, n2);
+    arrpush(els, n3);
+    arrpush(els, n4);
+    return (AST){.ast_type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
+}
+
+AST list5(AST n1, AST n2, AST n3, AST n4, AST n5)
+{
+    AST *els = NULL;
+    arrpush(els, n1);
+    arrpush(els, n2);
+    arrpush(els, n3);
+    arrpush(els, n4);
+    arrpush(els, n5);
+    return (AST){.ast_type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
+}
+
+AST symbol(char *sym)
+{
+    return (AST){.ast_type = AST_SYMBOL, .symbol = sym};
+}
+
+AST *new_symbol(char *sym)
+{
+    AST *s = (AST *)malloc(sizeof(AST));
+    *s = symbol(sym);
+    return s;
 }
 
 AST parse(ParseState *state);
@@ -790,26 +755,29 @@ void add_type(TypeState *state, AST *node)
     {
     case AST_LIST:
         add_type_list(state, node);
+        // TODO: maybe this shouldn't be null?
+        node->value_type = NULL;
         break;
     case AST_SYMBOL:
     {
-        AST *type = shget(state->globals, node->symbol);
-
-        if (type == NULL)
+        if (shgeti(state->globals, node->symbol) >= 0)
         {
-            if (strcmp(node->symbol, "+") == 0)
-            {
-
-                node->value_type = &value_type_int;
-            }
-            if (strcmp(node->symbol, "=") == 0 || strcmp(node->symbol, "<=") == 0 || strcmp(node->symbol, "*") == 0 || strcmp(node->symbol, "!=") == 0 || strcmp(node->symbol, "zero?") == 0 || strcmp(node->symbol, "-") == 0 || strcmp(node->symbol, "inc") == 0 || strcmp(node->symbol, "==") == 0 || strcmp(node->symbol, "&&") == 0 || strcmp(node->symbol, "<") == 0 || strcmp(node->symbol, ">=") == 0 || strcmp(node->symbol, "%") == 0 || strcmp(node->symbol, "||") == 0)
-            {
-                node->value_type = &value_type_int;
-            }
+            AST *type = shget(state->globals, node->symbol);
+            node->value_type = type;
         }
         else
         {
-            node->value_type = type;
+            if (strcmp(node->symbol, "+") == 0)
+            {
+                AST *type = (AST *)malloc(sizeof(AST));
+                *type = list3(value_type_int, value_type_int, value_type_int);
+                type->list.type = LIST_BRACKETS;
+                node->value_type = type;
+            }
+            else if (strcmp(node->symbol, "=") == 0 || strcmp(node->symbol, "<=") == 0 || strcmp(node->symbol, "*") == 0 || strcmp(node->symbol, "!=") == 0 || strcmp(node->symbol, "zero?") == 0 || strcmp(node->symbol, "-") == 0 || strcmp(node->symbol, "inc") == 0 || strcmp(node->symbol, "==") == 0 || strcmp(node->symbol, "&&") == 0 || strcmp(node->symbol, "<") == 0 || strcmp(node->symbol, ">=") == 0 || strcmp(node->symbol, "%") == 0 || strcmp(node->symbol, "||") == 0)
+            {
+                node->value_type = &value_type_int;
+            }
         }
         break;
     }
@@ -856,6 +824,19 @@ char *gensym(CTransformState *state)
 
 SymAST transform(CTransformState *state, AST *node);
 
+AST *ast_in(AST *list, int n)
+{
+    assert(list->ast_type == AST_LIST);
+    assert(n >= 0 && n < arrlen(list->list.elements));
+    return &list->list.elements[n];
+}
+
+AST *ast_last(AST *list)
+{
+    assert(list->ast_type == AST_LIST);
+    return ast_in(list, arrlen(list->list.elements) - 1);
+}
+
 int ast_eq(AST *n1, AST *n2)
 {
     if (n1->ast_type != n2->ast_type)
@@ -875,6 +856,9 @@ int ast_eq(AST *n1, AST *n2)
         break;
     case AST_SYMBOL:
         return strcmp(n1->symbol, n2->symbol) == 0;
+        break;
+    case AST_NUMBER:
+        return n1->number == n2->number;
         break;
     default:
         printf("unhandled type -- ast: ");
@@ -1706,7 +1690,7 @@ char *c_compile_all(AST *from)
 
 ////////////////// Eval //////////////////////
 
-AST *gen_ast(char *code)
+AST *vajer_ast(char *code)
 {
     int do_print = 0;
     Token *tokens = tokenize(code, strlen(code));
@@ -1725,7 +1709,14 @@ AST *gen_ast(char *code)
         printf("} nye\n\n");
     }
 
-    AST *transformed_nodes = c_transform_all(typed_nodes);
+    return typed_nodes;
+}
+
+AST *gen_ast(char *code)
+{
+    int do_print = 0;
+
+    AST *transformed_nodes = c_transform_all(vajer_ast(code));
     if (do_print)
     {
         printf("\n");
@@ -1737,6 +1728,31 @@ AST *gen_ast(char *code)
     }
 
     return transformed_nodes;
+}
+
+void vajer_to_file(AST *ast, char *path)
+{
+    int do_print = 1;
+    AST *transformed_nodes = c_transform_all(ast);
+    char *source = c_compile_all(transformed_nodes);
+
+    if (do_print)
+    {
+        printf("source:\n%s\n", source);
+    }
+
+    FILE *f = fopen(path, "w");
+    assert(f != NULL);
+
+    fputs("#include <stdio.h>\n"
+          "#include <string.h>\n"
+          "#include <SDL2/SDL.h>\n"
+          "#include <assert.h>\n"
+          "#include <time.h>\n"
+          "#include <stdlib.h>\n",
+          f);
+    fputs(source, f);
+    fclose(f);
 }
 
 void eval(char *code)
@@ -1814,5 +1830,3 @@ void compile_to_file(char *code, char *path)
     fputs(source, f);
     fclose(f);
 }
-
-#endif

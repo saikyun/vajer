@@ -2,4 +2,5 @@
   [x y]
   (+ x y))
 
-(adder 10 20)
+(defn main []
+  (adder 10 20))

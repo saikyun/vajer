@@ -1,5 +1,4 @@
-#ifndef SLURP_H
-#define SLURP_H
+#pragma once
 
 char *slurp(char *path)
 {
@@ -22,5 +21,3 @@ char *slurp(char *path)
 
     return buffer;
 }
-
-#endif
