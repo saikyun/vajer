@@ -1,3 +1,3 @@
-(var str :char* "hello")
+(var str "hello")
 
 (in str 0)

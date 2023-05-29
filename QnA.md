@@ -935,5 +935,42 @@ dictionary
 
 I think for now I want it to convert to the explicit types, so let's just do that.
 
-* [ ] Write a test that tests for transforming an inferred function to an explicit one
-* [ ] Implement the transformation
+* [x] Write a test that tests for transforming an inferred function to an explicit one
+* [x] Implement the transformation
+
+Now it works!
+
+```
+(defn adder
+  [x y]
+  (+ x y))
+
+(defn main []
+  (adder 10 20))
+```
+
+to
+
+```
+int adder(int x, int y) {
+  return (x + y);
+}
+
+int main() {
+  int gensym0;
+  gensym0 = adder(10, 20);
+
+  return gensym0;
+}
+```
+
+Only problem now is that I can't express explicit types. Hm. (Because I ended up using the .value_type instead). So either I need to put .value_type as explicit, or move explicit types into .value_type and remove them from the ast.
+
+Maybe I'll just do the `declare` thing.
+
+# TODO: search for TODO in project :o
+
+
+.........I've gotten a bit but getting kinda stuck on the in / var stuff. I think it has to do with me putting the types into `env`, and those types not expanding properly.
+
+* [ ] Write test for `var` specifically, in type inference stuff

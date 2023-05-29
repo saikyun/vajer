@@ -1,3 +1,3 @@
-(declare lule :void)
+(declare lule [-> :void])
 
 (lule)

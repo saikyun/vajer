@@ -1,16 +1,18 @@
-(declare malloc :void*)
-(declare printf :void)
+(declare malloc [:int -> :void*])
+(declare printf [[:char] -> :void])
 
-(defn main [] :int
+(defn main []
   (if 1 (malloc 1))
 
-  (if 0 (malloc 1) (malloc 1337))
+  (if 0
+    (malloc 1)
+    (malloc 1337))
 
-  (var lul :char* (if 0 "a" "b"))
+  (var lul (if 0 "a" "b"))
 
   (if 0 (printf "hehe"))
 
-  (var dead :int 0)
+  (var dead 0)
 
   (if 0
     (do
@@ -18,16 +20,17 @@
       (set dead 1)))
 
 
-  (var map :char*)
-    
+  (var map "")
+  
   (if (== 4 dead)
     (printf "boulder!\n")
     (do
-      (put map 0 1)
-      (put map 1 0)
+      (put map 0 'x')
+      (put map 1 'y')
     ))
 
-  (var e :int)
+  #(declare e :SDL_Event)
+  (var e 0)
 
   (if (&& (== 0 dead)
           (== e SDL_KEYDOWN))
@@ -43,4 +46,4 @@
   )
   
   
-  1)
+  0)

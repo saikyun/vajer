@@ -1,10 +1,10 @@
-(defn inc [x :int] :int
+(defn inc [x]
   (+ x 1))
 
-(defn main [] :int
-  (var x :int (inc (if 1 1 0)))
+(defn main []
+  (var x (inc (if 1 1 0)))
 
-  #(var res :int
+  #(var res
   #  (if (== 1 1)
   #    1337))
   0)
