@@ -88,8 +88,6 @@ AST *generics_to_specific(TypeNameState *state, AST *t)
 
 void _assign_type_names(TypeNameState *state, AST *e)
 {
-    printf("assign_type_names\t");
-    print_ast(e);
     switch (e->ast_type)
     {
     case AST_LIST:
@@ -120,9 +118,6 @@ void _assign_type_names(TypeNameState *state, AST *e)
             AST *t = get_types(state->types, e);
             e->value_type = generics_to_specific(state, t);
         }
-
-        printf("got\t\t\t");
-        print_ast(e->value_type);
         break;
     case AST_NUMBER:
         if (!in_types(state->types, e))
@@ -174,8 +169,8 @@ Constraint *generate_constraints(EnvKV *types, Constraint *constraints)
             if (e->list.type == LIST_BRACKETS)
             {
                 // TODO: maybe handle vector?
-                printf("unhandled vector: ");
-                print_ast(e);
+                // printf("unhandled vector: ");
+                // print_ast(e);
             }
             else
             {
@@ -189,6 +184,9 @@ Constraint *generate_constraints(EnvKV *types, Constraint *constraints)
                     AST *last_type = get_types(types, &arrlast(list));
 
                     arrpush(constraints, ((Constraint){*ret_type, *last_type, e, &arrlast(list)}));
+                }
+                else if (strcmp(f, "printf") == 0)
+                {
                 } /*
                  else if (strcmp(f, "in") == 0)
                  {
@@ -221,6 +219,12 @@ Constraint *generate_constraints(EnvKV *types, Constraint *constraints)
                         }
                     }
                 }
+                else if (strcmp(f, "cast") == 0)
+                {
+                    AST *branch_type = get_types(types, &list[2]);
+                    AST *cast_type = &list[1];
+                    arrpush(constraints, ((Constraint){*cast_type, *branch_type}));
+                }
                 else if (strcmp(f, "defn") == 0)
                 {
                     assert(list[1].ast_type == AST_SYMBOL);
@@ -240,6 +244,8 @@ Constraint *generate_constraints(EnvKV *types, Constraint *constraints)
 
                     AST *last_type = get_types(types, &arrlast(list));
 
+                    assert(last_type);
+
                     arrpush(func_constraint.list.elements, *last_type);
 
                     AST *f_type = get_types(types, &list[1]);
@@ -249,7 +255,6 @@ Constraint *generate_constraints(EnvKV *types, Constraint *constraints)
                 else
                 {
                     AST *ret_type = kv.value;
-                    // AST *f_type = get_types(types, &list[0]);
                     AST *f_type = list[0].value_type;
 
                     AST f_call = (AST){.ast_type = AST_LIST};
@@ -262,7 +267,7 @@ Constraint *generate_constraints(EnvKV *types, Constraint *constraints)
                     arrpush(f_call.list.elements, symbol("->"));
                     arrpush(f_call.list.elements, *ret_type);
 
-                    arrpush(constraints, ((Constraint){*f_type, f_call, &list[0], e}));
+                    arrpush(constraints, ((Constraint){*f_type, f_call, f_type, e}));
                 }
             }
             break;
@@ -332,7 +337,7 @@ int unify(AST *x, AST *y, EnvKV **env)
     {
         if (arrlen(x->list.elements) == 0 && arrlen(y->list.elements) == 0)
         {
-            printf("in list, could not unify\n");
+            printf("in list, could not unify (empty)\n");
             prin_ast(x);
             printf(" = ");
             print_ast(y);
@@ -341,7 +346,7 @@ int unify(AST *x, AST *y, EnvKV **env)
 
         if (arrlen(x->list.elements) != arrlen(y->list.elements))
         {
-            printf("in list, could not unify\n");
+            printf("in list, could not unify (differing length)\n");
             prin_ast(x);
             printf(" = ");
             print_ast(y);
@@ -353,9 +358,9 @@ int unify(AST *x, AST *y, EnvKV **env)
             if (unify(&x->list.elements[i], &y->list.elements[i], env) == 0)
             {
                 printf("in list, could not unify\n");
-                prin_ast(x);
+                prin_ast(&x->list.elements[i]);
                 printf(" = ");
-                print_ast(y);
+                print_ast(&y->list.elements[i]);
                 return 0;
             }
         }
@@ -397,8 +402,8 @@ AST *resolve_type(EnvKV *env, AST *type)
     {
         if (!in_types(env, type))
         {
-            printf("could not resolve type: ");
-            print_ast(type);
+            // printf("could not resolve type: ");
+            // print_ast(type);
         }
         else
         {
@@ -408,8 +413,6 @@ AST *resolve_type(EnvKV *env, AST *type)
 
     if (resolved_type->ast_type == AST_LIST)
     {
-        printf("list type: ");
-        print_ast(resolved_type);
         AST *new_type = (AST *)malloc(sizeof(AST));
         *new_type = (AST){.ast_type = AST_LIST};
 
@@ -436,11 +439,6 @@ AST *resolve_type(EnvKV *env, AST *type)
 
 void ast_resolve_types(EnvKV *env, AST *ast)
 {
-    print_ast(ast);
-
-    printf("before type: ");
-    if (ast->value_type)
-        print_ast(ast->value_type);
     if (ast->value_type != NULL)
     {
         AST *new_type = resolve_type(env, ast->value_type);
@@ -486,6 +484,16 @@ void ast_resolve_types(EnvKV *env, AST *ast)
                 else
                     assert(0);
             }
+            else if (strcmp(ast->list.elements[0].symbol, "cast") == 0)
+            {
+                // TODO: why no end up here????
+                AST *cast_type = &ast->list.elements[1];
+                ast->list.elements[2].value_type = cast_type;
+                if (cast_type)
+                    ast->value_type = cast_type;
+                else
+                    assert(0);
+            }
             else if (strcmp(ast->list.elements[0].symbol, "defn") == 0)
             {
                 AST *ret_type = ast->list.elements[1].value_type;
@@ -520,15 +528,11 @@ void ast_resolve_types(EnvKV *env, AST *ast)
         assert(0);
         break;
     }
-
-    printf("after type: ");
-    if (ast->value_type)
-        print_ast(ast->value_type);
 }
 
 void ast_resolve_types_all(EnvKV *env, AST *ast)
 {
-    int do_print = 1;
+    int do_print = 0;
 
     if (do_print)
         printf(">> \e[35menv before\e[0m\n");
@@ -559,8 +563,9 @@ void ast_resolve_types_all(EnvKV *env, AST *ast)
         {
             if (do_print && constraints[i].left_expr && constraints[i].right_expr)
             {
+                printf("\e[32mexpr:\e[0m\n");
                 prin_ast(constraints[i].left_expr);
-                printf(" = ");
+                printf("\n\e[32m=\e[0m\n");
                 print_ast(constraints[i].right_expr);
             }
         }

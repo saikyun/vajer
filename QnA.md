@@ -973,4 +973,24 @@ Maybe I'll just do the `declare` thing.
 
 .........I've gotten a bit but getting kinda stuck on the in / var stuff. I think it has to do with me putting the types into `env`, and those types not expanding properly.
 
-* [ ] Write test for `var` specifically, in type inference stuff
+* [x] Write test for `var` specifically, in type inference stuff
+
+More stuff works.
+
+# TODO: Fix scopes, e.g. this breaks atm:
+
+```
+(var str "hello")
+(defn x [str] (+ str 1))
+```
+
+Hm, atm things feels annoying. I'm gonna try to move things so I can see all the steps in a single function.
+
+* [ ] Move all Vajer transformations etc to a single function, that takes char * and outputs AST
+* [ ] Make a similar function for C, that takes AST and outputs AST *
+* [ ] Then ast -> c code
+
+They should be called:
+AST *vajer_ast(char *code)
+AST *c_ast(AST *ast)
+char *compile_c(AST *ast)

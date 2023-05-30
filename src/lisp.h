@@ -763,6 +763,12 @@ void add_type_list(TypeState *state, AST *node)
         default_add_types_recurse(state, node);
         node->value_type = node->list.elements[2].value_type;
     }
+    else if (strcmp(head.symbol, "cast") == 0)
+    {
+        default_add_types_recurse(state, node);
+        node->value_type = &node->list.elements[1];
+        node->list.elements[2].value_type = &node->list.elements[1];
+    }
     else if (strcmp(head.symbol, "defn") == 0)
     {
         char *name = node->list.elements[1].symbol;
@@ -781,7 +787,7 @@ void add_type_list(TypeState *state, AST *node)
         }
         */
 
-        for (int i = 4; i < arrlen(node->list.elements); i++)
+        for (int i = 3; i < arrlen(node->list.elements); i++)
         {
             add_type(state, &node->list.elements[i]);
         }
@@ -1495,7 +1501,6 @@ void c_compile_while(CCompilationState *state, AST node)
 
 void c_compile_defn(CCompilationState *state, AST node)
 {
-    print_ast(&node);
     AST type = *ast_last(node.list.elements[1].value_type); // node.list.elements[3];
     string(&state->source, type.symbol + 1);
 
@@ -1677,7 +1682,7 @@ void c_compile_list(CCompilationState *state, AST node)
         }
         else
         {
-            c_compile_funcall(state, node);
+            return c_compile_funcall(state, node);
         }
         break;
     }

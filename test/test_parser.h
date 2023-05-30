@@ -138,7 +138,7 @@ MU_TEST(test_transform_if)
     printf("\n");
     */
 
-    AST *transformed_nodes = gen_ast(code);
+    AST *transformed_nodes = c_ast(vajer_ast(code));
     /*
     printf("\n");
     for (int i = 0; i < arrlen(transformed_nodes); i++)
@@ -159,7 +159,7 @@ MU_TEST(test_transform_if_do)
     printf("\n");
     */
 
-    AST *transformed_nodes = gen_ast(code);
+    AST *transformed_nodes = c_ast(vajer_ast(code));
 
     /*
     printf("\n");
@@ -202,7 +202,7 @@ MU_TEST(test_compile_if)
     */
 
     char *code = "(if (zero? n) 0 1)";
-    AST *transformed_nodes = gen_ast(code);
+    AST *transformed_nodes = c_ast(vajer_ast(code));
 
     char *source = c_compile_all(transformed_nodes);
     // printf("source:\n%s\n", source);
@@ -248,11 +248,11 @@ MU_TEST(test_compile_defn)
                  "    1\n"
                  "    (* n (fac (- n 1)))))";
 
-    AST *transformed_nodes = gen_ast(code);
+    AST *transformed_nodes = c_ast(vajer_ast(code));
 
     char *source = c_compile_all(transformed_nodes);
 
-    printf("source:\n%s\n", source);
+    // printf("source:\n%s\n", source);
 
     TCCState *s = tcc_new();
     tcc_set_output_type(s, TCC_OUTPUT_MEMORY);
@@ -278,7 +278,7 @@ MU_TEST(test_compile_two_types)
         "  (+ num (strlen str))\n"
         ")";
 
-    AST *transformed_nodes = gen_ast(code);
+    AST *transformed_nodes = c_ast(vajer_ast(code));
     /*
     printf("\n");
     for (int i = 0; i < arrlen(transformed_nodes); i++)
@@ -289,7 +289,7 @@ MU_TEST(test_compile_two_types)
     */
 
     char *source = c_compile_all(transformed_nodes);
-    printf("source:\n%s\n", source);
+    // printf("source:\n%s\n", source);
 
     TCCState *s = tcc_new();
     tcc_set_output_type(s, TCC_OUTPUT_MEMORY);
@@ -320,13 +320,14 @@ MU_TEST(test_compile_while)
         "(defn plusser [nof]\n"
         "  (var res 0)\n"
         "  (while (> nof -1)\n"
-        "    (set res (+ res nof))\n"
-        "    (set nof (- nof 1))\n"
+        "    (do\n"
+        "      (set res (+ res nof))\n"
+        "      (set nof (- nof 1)))\n"
         "  )\n"
         "  res\n"
         ")";
 
-    AST *transformed_nodes = gen_ast(code);
+    AST *transformed_nodes = c_ast(vajer_ast(code));
 
     /*
     printf("\n");
@@ -374,7 +375,7 @@ MU_TEST(test_compile_set_if)
 MU_TEST(test_add_type_declare)
 {
     char *code = slurp("lisp/declare.lisp");
-    AST *ast = gen_ast(code);
+    AST *ast = c_ast(vajer_ast(code));
 
     /*
     printf("\ntype info:\n");
@@ -394,8 +395,9 @@ MU_TEST(test_add_type_declare)
 MU_TEST(test_add_type_list)
 {
     char *code = slurp("lisp/list.lisp");
-    AST *ast = gen_ast(code);
+    AST *ast = c_ast(vajer_ast(code));
 
+    /*
     printf("\ntype info:\n");
     for (int i = 0; i < arrlen(ast); i++)
     {
@@ -403,6 +405,7 @@ MU_TEST(test_add_type_list)
     }
 
     print_ast(&ast[1].list.elements[1].list.elements[2]);
+    */
 
     mu_assert(ast[1].list.elements[1].list.elements[2].value_type != NULL);
     AST sym = symbol(":char");
@@ -411,22 +414,24 @@ MU_TEST(test_add_type_list)
 
     mu_assert(ast_eq(ast[1].list.elements[1].list.elements[2].value_type, &sym));
 
-    printf("\ncode:\n%s\n", c_compile_all(ast));
+    // printf("\ncode:\n%s\n", c_compile_all(ast));
 }
 
 MU_TEST(test_add_type_intermediate)
 {
     char *code = slurp("lisp/intermediate_types.lisp");
-    AST *ast = gen_ast(code);
+    AST *ast = c_ast(vajer_ast(code));
 
-    printf("\ntype info:\n");
-    for (int i = 0; i < arrlen(ast); i++)
-    {
-        print_ast(&ast[i]);
-    }
+    /*
+        printf("\ntype info:\n");
+        for (int i = 0; i < arrlen(ast); i++)
+        {
+            print_ast(&ast[i]);
+        }
 
-    printf("\ncode:\n%s\n", c_compile_all(ast));
-    print_ast(&ast[1].list.elements[2]);
+        printf("\ncode:\n%s\n", c_compile_all(ast));
+        print_ast(&ast[1].list.elements[2]);
+    */
 
     AST sym = symbol(":void*");
     mu_assert(ast_eq(ast[1].list.elements[2].value_type, &sym));
@@ -434,74 +439,73 @@ MU_TEST(test_add_type_intermediate)
 
 MU_TEST(test_add_type_if)
 {
-    int do_print = 1;
+    int do_print = 0;
 
     char *code = slurp("lisp/if.lisp");
-    AST *ast = gen_ast(code);
-    /*
+    AST *ast = c_ast(vajer_ast(code));
+
+    if (do_print)
+    {
+        printf("\ntype info:\n");
+        for (int i = 0; i < arrlen(ast); i++)
+        {
+            print_ast(&ast[i]);
+        }
+
+        printf("\ncode:\n%s\n", c_compile_all(ast));
+    }
+
+    {
+        AST *if_node = &ast[2].list.elements[5].list.elements[1];
+
         if (do_print)
         {
-            printf("\ntype info:\n");
-            for (int i = 0; i < arrlen(ast); i++)
-            {
-                print_ast(&ast[i]);
-            }
-
-            printf("\ncode:\n%s\n", c_compile_all(ast));
+            print_ast(if_node);
         }
 
+        mu_assert(if_node->value_type != NULL);
+        AST sym = symbol(":void*");
+        mu_assert(ast_eq(if_node->value_type, &sym));
+    }
+
+    {
+        AST *if_node = &ast[2].list.elements[7].list.elements[1];
+
+        if (do_print)
         {
-            AST *if_node = &ast[2].list.elements[5].list.elements[1];
-
-            if (do_print)
-            {
-                print_ast(if_node);
-            }
-
-            mu_assert(if_node->value_type != NULL);
-            AST sym = symbol(":void*");
-            mu_assert(ast_eq(if_node->value_type, &sym));
+            printf("second\n");
+            print_ast(&ast[2]);
+            print_ast(if_node);
         }
 
+        mu_assert(if_node->value_type != NULL);
+        AST sym = symbol(":void*");
+        mu_assert(ast_eq(if_node->value_type, &sym));
+    }
+
+    {
+        AST *if_node = &ast[2].list.elements[8].list.elements[2].list.elements[1];
+
+        if (do_print)
         {
-            AST *if_node = &ast[2].list.elements[7].list.elements[1];
-
-            if (do_print)
-            {
-                printf("second\n");
-                print_ast(&ast[2]);
-                print_ast(if_node);
-            }
-
-            mu_assert(if_node->value_type != NULL);
-            AST sym = symbol(":void*");
-            mu_assert(ast_eq(if_node->value_type, &sym));
+            printf("\n\n\n\nlast\n");
+            print_ast(if_node);
         }
 
-        {
-            AST *if_node = &ast[2].list.elements[8].list.elements[2].list.elements[1];
+        mu_assert(if_node->value_type != NULL);
+        AST sym = list1(symbol(":char"));
 
-            if (do_print)
-            {
-                printf("\n\n\n\nlast\n");
-                print_ast(if_node);
-            }
+        mu_assert(ast_eq(if_node->value_type, &sym));
+    }
 
-            mu_assert(if_node->value_type != NULL);
-            AST sym = list1(symbol(":char"));
+    compile_to_file(code, "build/if.c");
 
-            mu_assert(ast_eq(if_node->value_type, &sym));
-        }
-
-        compile_to_file(code, "build/if.c");
-        */
-    // eval(code);
+    eval(code);
 }
 
 MU_TEST_SUITE(lisp_suite)
 {
-    /*
-        // tokenize
+    // tokenize
     MU_RUN_TEST(test_tokenize_string);
     MU_RUN_TEST(test_tokenize_comment);
     MU_RUN_TEST(test_tokenize_defn);
@@ -512,10 +516,7 @@ MU_TEST_SUITE(lisp_suite)
     // add type
     MU_RUN_TEST(test_add_type_declare);
     MU_RUN_TEST(test_add_type_list);
-
-*/
     MU_RUN_TEST(test_add_type_intermediate);
-    /*
     MU_RUN_TEST(test_add_type_if);
 
     // transform
@@ -527,5 +528,4 @@ MU_TEST_SUITE(lisp_suite)
     MU_RUN_TEST(test_compile_two_types);
     MU_RUN_TEST(test_compile_while);
     MU_RUN_TEST(test_compile_set_if);
-*/
 }

@@ -172,16 +172,17 @@ MU_TEST(test_basic_inference)
     }
 
     {
-        // TODO: probably need to refactor this test
-        EnvKV *unused_env = NULL;
-        AST *ast = vajer_ast(&unused_env, slurp("test/inference/basic.lisp"));
-        EnvKV *types = NULL;
-        types = assign_type_names_all(ast, types);
+        char *code = slurp("test/inference/basic.lisp");
+        Token *tokens = tokenize(code, strlen(code));
+        AST *root_nodes = parse_all(code, tokens);
 
-        // print_types(types);
+        EnvKV *env = standard_environment();
+
+        AST *typed_nodes = add_type_all(&env, root_nodes);
+        ast_resolve_types_all(env, typed_nodes);
 
         Constraint *constraints = NULL;
-        constraints = generate_constraints(types, constraints);
+        constraints = generate_constraints(env, constraints);
 
         /*
         for (int i = 0; i < arrlen(constraints); i++)
@@ -192,7 +193,6 @@ MU_TEST(test_basic_inference)
         }
         */
 
-        EnvKV *env = NULL;
         for (int i = 0; i < arrlen(constraints); i++)
         {
             int res = unify(&constraints[i].left, &constraints[i].right, &env);
@@ -201,7 +201,7 @@ MU_TEST(test_basic_inference)
 
         // print_env(env);
 
-        AST *x = &ast[0].list.elements[2].list.elements[0];
+        AST *x = &typed_nodes[0].list.elements[2].list.elements[0];
         AST new_type;
         // print_ast(x);
         new_type = *resolve_type(env, x->value_type);
@@ -222,9 +222,7 @@ MU_TEST(test_basic_inference)
             hmput(env, new_symbol("+"), type);
         }
 
-        AST *ast = vajer_ast(&env, slurp("test/inference/basic.lisp"));
-
-        ast_resolve_types_all(env, ast);
+        AST *ast = vajer_ast(slurp("test/inference/basic.lisp"));
 
         AST *x = &ast[0].list.elements[2].list.elements[0];
         AST *call = &ast[1];
@@ -237,12 +235,7 @@ MU_TEST(test_basic_inference)
 MU_TEST(test_infer_then_compile)
 {
     {
-        EnvKV *env = NULL;
-        AST *ast = vajer_ast(&env, slurp("test/inference/adder.lisp"));
-
-        AST plus_type = list4(symbol(":int"), symbol(":int"), symbol("->"), symbol(":int"));
-        hmput(env, new_symbol("+"), &plus_type);
-        ast_resolve_types_all(env, ast);
+        AST *ast = vajer_ast(slurp("test/inference/adder.lisp"));
 
         AST *x = &ast[0].list.elements[2].list.elements[0];
         AST intsym = symbol(":int");
@@ -250,27 +243,23 @@ MU_TEST(test_infer_then_compile)
 
         AST *transformed_nodes = c_transform_all(ast);
 
-        printf("source:\n%s", c_compile_all(transformed_nodes));
+        // printf("source:\n%s", c_compile_all(transformed_nodes));
     }
 }
 
 MU_TEST(test_infer_var)
 {
     {
-        EnvKV *env = NULL;
-        AST *ast = vajer_ast(&env, slurp("test/inference/var.lisp"));
-
-        {
-            AST *type = (AST *)malloc(sizeof(AST));
-            *type = list4(symbol("?T"), symbol("?T"), symbol("->"), value_type_void);
-            hmput(env, new_symbol("var"), type);
-        }
-        ast_resolve_types_all(env, ast);
-
+        AST *ast = vajer_ast(slurp("test/inference/var.lisp"));
         AST *transformed_nodes = c_transform_all(ast);
 
-        printf("source:\n%s", c_compile_all(transformed_nodes));
+        // printf("source:\n%s", c_compile_all(transformed_nodes));
     }
+}
+
+MU_TEST(test_infer_malloc)
+{
+    eval(slurp("test/inference/malloc.lisp"));
 }
 
 MU_TEST_SUITE(test_suite_inference)
@@ -286,4 +275,6 @@ MU_TEST_SUITE(test_suite_inference)
     MU_RUN_TEST(test_infer_then_compile);
 
     MU_RUN_TEST(test_infer_var);
+
+    // MU_RUN_TEST(test_infer_malloc);
 }
