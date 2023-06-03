@@ -16,6 +16,9 @@ EnvKV *standard_environment()
 
     add_op(&env, ":int", "+");
     add_op(&env, ":int", "<");
+    add_op(&env, ":int", ">");
+    add_op(&env, ":int", "<=");
+    add_op(&env, ":int", ">=");
     add_op(&env, ":int", "%");
     add_op(&env, ":int", "!=");
     add_op(&env, ":int", "||");
@@ -23,11 +26,6 @@ EnvKV *standard_environment()
         AST *type = (AST *)malloc(sizeof(AST));
         *type = list4(symbol("?T"), symbol("?T"), symbol("->"), symbol(":int"));
         hmput(env, new_symbol("=="), type);
-    }
-    {
-        AST *type = (AST *)malloc(sizeof(AST));
-        *type = list4(symbol("?T"), symbol("?T"), symbol("->"), symbol(":int"));
-        hmput(env, new_symbol(">"), type);
     }
     {
         AST *type = (AST *)malloc(sizeof(AST));
@@ -79,57 +77,61 @@ EnvKV *standard_environment()
 }
 
 ////////////////// AST //////////////////////
+//
+//
+//
 
 AST *vajer_ast(char *code)
 {
-    int do_print = 0;
+    log("\e[34m>> code\n\e[0m%s\n", code);
 
     Token *tokens = tokenize(code, strlen(code));
+
     AST *root_nodes = parse_all(code, tokens);
+    log("\n\e[35m>> parsed\n\e[0m");
+    print_ast_list(root_nodes);
+    log("\n");
 
     EnvKV *env = standard_environment();
+    // AST *typed_nodes = add_type_all(&env, root_nodes);
+    ast_resolve_types_all(env, code, root_nodes);
+    log("\n\e[33m>> with types\n\e[0m");
+    print_ast_list(root_nodes);
+    log("\n");
 
-    AST *typed_nodes = add_type_all(&env, root_nodes);
-    ast_resolve_types_all(env, typed_nodes);
-
-    if (do_print)
-    {
-        printf("\n\nye {\n");
-        for (int i = 0; i < arrlen(root_nodes); i++)
-        {
-            print_ast(&root_nodes[i]);
-            printf("\n");
-        }
-        printf("} nye\n\n");
-    }
-
-    return typed_nodes;
+    return root_nodes;
 }
+
+//
+//
+//
+//
+//
 
 AST *c_ast(AST *ast)
 {
-    int do_print = 0;
+    int do_print = 1;
 
     if (do_print)
     {
-        printf("\n\n\n\n\n\n>> \e[35mAST\e[0m\n");
+        log("\n\n\n\n\n\n>> \e[35mAST\e[0m\n");
 
         for (int i = 0; i < arrlen(ast); i++)
         {
             print_ast(&ast[i]);
         }
-        printf(">> \e[35mEnd of AST\e[0m\n");
+        log(">> \e[35mEnd of AST\e[0m\n");
     }
 
     AST *transformed_nodes = c_transform_all(ast);
     if (do_print)
     {
-        printf("\n");
+        log("\n");
         for (int i = 0; i < arrlen(transformed_nodes); i++)
         {
             print_ast(&transformed_nodes[i]);
         }
-        printf("\n");
+        log("\n");
     }
 
     return transformed_nodes;
@@ -137,8 +139,40 @@ AST *c_ast(AST *ast)
 
 ////////////////// Eval / compile //////////////////////
 
+void compile_to_file(char *code, char *path)
+{
+    int do_print = 0;
+
+    char *source = c_compile_all(c_ast(vajer_ast(code)));
+
+    FILE *f = fopen(path, "w");
+    sai_assert(f != NULL);
+
+    fputs("#include <stdio.h>\n"
+          "#include <string.h>\n"
+          "#include <SDL2/SDL.h>\n"
+          "#include <assert.h>\n"
+          "#include <time.h>\n"
+          "#include <stdlib.h>\n"
+          "#include <alloca.h>\n",
+          f);
+    fputs(source, f);
+    fclose(f);
+}
+
 void eval(char *code)
 {
+    compile_to_file(code, "build/evaled.c");
+
+    TCCState *s = tcc_new();
+    // tcc_set_options(s, "-bt10");
+    tcc_set_output_type(s, TCC_OUTPUT_MEMORY);
+
+    sai_assert(tcc_add_file(s, "build/evaled.c") == 0);
+
+    sai_assert(tcc_run(s, 0, NULL) == 0);
+
+    /*
     char *source = c_compile_all(c_ast(vajer_ast(code)));
 
     int do_print = 0;
@@ -149,6 +183,7 @@ void eval(char *code)
     }
 
     TCCState *s = tcc_new();
+    tcc_set_options(s, "-bt10");
     tcc_set_output_type(s, TCC_OUTPUT_MEMORY);
 
     String src = (String){};
@@ -163,28 +198,8 @@ void eval(char *code)
            "#include <alloca.h>\n",
            source);
 
-    assert(tcc_compile_string(s, src.str) != -1);
+    sai_assert(tcc_compile_string(s, src.str) != -1);
 
     tcc_run(s, 0, NULL);
-}
-
-void compile_to_file(char *code, char *path)
-{
-    int do_print = 0;
-
-    char *source = c_compile_all(c_ast(vajer_ast(code)));
-
-    FILE *f = fopen(path, "w");
-    assert(f != NULL);
-
-    fputs("#include <stdio.h>\n"
-          "#include <string.h>\n"
-          "#include <SDL2/SDL.h>\n"
-          "#include <assert.h>\n"
-          "#include <time.h>\n"
-          "#include <stdlib.h>\n"
-          "#include <alloca.h>\n",
-          f);
-    fputs(source, f);
-    fclose(f);
+    */    
 }

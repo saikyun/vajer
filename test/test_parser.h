@@ -377,19 +377,13 @@ MU_TEST(test_add_type_declare)
     char *code = slurp("lisp/declare.lisp");
     AST *ast = c_ast(vajer_ast(code));
 
-    /*
-    printf("\ntype info:\n");
-    for (int i = 0; i < arrlen(ast); i++)
-    {
-        print_ast(&ast[i]);
-    }
-    */
-
     // result of lule should have type void
     mu_assert(ast[1].list.elements[1].value_type != NULL);
     mu_assert(ast_eq(ast[1].list.elements[1].value_type, &value_type_void));
 
+
     //    printf("\ncode:\n%s\n", c_compile_all(ast));
+
 }
 
 MU_TEST(test_add_type_list)

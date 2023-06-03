@@ -108,8 +108,11 @@ static void (*minunit_teardown)(void) = NULL;
 	minunit_teardown = teardown_fun;\
 )
 
+void clear_log();
+
 /*  Test runner */
 #define MU_RUN_TEST(test) MU__SAFE_BLOCK(\
+	clear_log();\
 	if (minunit_real_timer==0 && minunit_proc_timer==0) {\
 		minunit_real_timer = mu_timer_real();\
 		minunit_proc_timer = mu_timer_cpu();\
@@ -163,6 +166,7 @@ static void (*minunit_teardown)(void) = NULL;
 #define mu_assert(test) MU__SAFE_BLOCK(\
 	minunit_assert++;\
 	if (!(test)) {\
+		dump_log(); \
 		snprintf(minunit_last_message, MINUNIT_MESSAGE_LEN, "\e[0;31m%s\n\e[0;36m%s failed:\n\t%s:%d\e[0m", #test, __func__, __FILE__, __LINE__);\
 		minunit_status = 1;\
 		return;\

@@ -178,30 +178,10 @@ MU_TEST(test_basic_inference)
 
         EnvKV *env = standard_environment();
 
-        AST *typed_nodes = add_type_all(&env, root_nodes);
-        ast_resolve_types_all(env, typed_nodes);
-
-        Constraint *constraints = NULL;
-        constraints = generate_constraints(env, constraints);
-
-        /*
-        for (int i = 0; i < arrlen(constraints); i++)
-        {
-            prin_ast(&constraints[i].left);
-            printf(" = ");
-            print_ast(&constraints[i].right);
-        }
-        */
-
-        for (int i = 0; i < arrlen(constraints); i++)
-        {
-            int res = unify(&constraints[i].left, &constraints[i].right, &env);
-            mu_assert(res);
-        }
-
+        ast_resolve_types_all(env, code, root_nodes);
         // print_env(env);
 
-        AST *x = &typed_nodes[0].list.elements[2].list.elements[0];
+        AST *x = &root_nodes[0].list.elements[2].list.elements[0];
         AST new_type;
         // print_ast(x);
         new_type = *resolve_type(env, x->value_type);
@@ -212,7 +192,6 @@ MU_TEST(test_basic_inference)
 
         mu_assert(ast_eq(x->value_type, &intsym));
     }
-
     {
         EnvKV *env = NULL;
 
@@ -262,6 +241,16 @@ MU_TEST(test_infer_malloc)
     eval(slurp("test/inference/malloc.lisp"));
 }
 
+MU_TEST(test_infer_defn_and_call)
+{
+    eval(slurp("test/inference/defn-and-call.lisp"));
+}
+
+MU_TEST(test_infer_defn_void)
+{
+    eval(slurp("test/inference/defn-void.lisp"));
+}
+
 MU_TEST_SUITE(test_suite_inference)
 {
     MU_RUN_TEST(test_basic_unification);
@@ -276,5 +265,9 @@ MU_TEST_SUITE(test_suite_inference)
 
     MU_RUN_TEST(test_infer_var);
 
-    // MU_RUN_TEST(test_infer_malloc);
+    MU_RUN_TEST(test_infer_malloc);
+
+    MU_RUN_TEST(test_infer_defn_and_call);
+
+    MU_RUN_TEST(test_infer_defn_void);
 }

@@ -986,11 +986,55 @@ More stuff works.
 
 Hm, atm things feels annoying. I'm gonna try to move things so I can see all the steps in a single function.
 
-* [ ] Move all Vajer transformations etc to a single function, that takes char * and outputs AST
-* [ ] Make a similar function for C, that takes AST and outputs AST *
-* [ ] Then ast -> c code
+* [x] Move all Vajer transformations etc to a single function, that takes char * and outputs AST
+* [x] Make a similar function for C, that takes AST and outputs AST *
+* [x] Then ast -> c code
 
 They should be called:
 AST *vajer_ast(char *code)
 AST *c_ast(AST *ast)
 char *compile_c(AST *ast)
+
+Done!
+
+Now, the first question is:
+
+## What does add_type_all actually do?
+
+It seems to "infer" types in a "dumb" way, i.e. it can only take concrete types and put onto if, defn etc. This was used when there was no inference. Now this should probably instead be done by some part of resolve_types_all instead.
+
+* [x] Fix malloc and cast
+
+I removed add_type_all because it didn't seem useful anymore, add typename could do its job.
+
+All tests except sdl-test run correctly now!
+
+For sdl-test, it might be nice to get information about where in the source an expression comes from. Gonna try to add that info.
+
+* [.] Add source info to AST
+
+Partially done for now, but needs more work.
+
+In the meantime, trying to fix defn and call not working right.
+
+* [x] Add test (test/inference/defn-and-call.lisp)
+* [x] Make repro as small as possible
+* [x] Implement test
+
+Types weren't resolved recursively (?t1 to ?t2 to ?t3). Now they are!
+
+For some reason, function move in sdl-test.lisp doesn't get the void type. Need to make a repro for that too. :)
+
+* [x] Add test (test/inference/defn-get-void.lisp)
+* [x] Make repro as small as possible
+* [x] Implement tests
+
+For some reason, it is unable to resolve the type. Not sure why. D: Maybe the type gets resolved too late or something. A bit unclear...
+
+Lol, I had a special case for `printf` which just didn't create any constraints. Fixed!
+
+Now I have problems with compiling to C, where the cast doesn't end up in the right place.
+
+* [x] Fix defn-and-call so that the cast is right in front of malloc
+
+Now it works! And the game works again!!! :D

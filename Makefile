@@ -4,7 +4,7 @@ INCLUDES=-Ilib -I/usr/local/include/SDL2 -I/usrc/local/include/SDL2_ttf
 LIBS=-Llib/tinycc -ltcc -L/usr/local/lib -lSDL2 
 
 test: FORCE
-	./lib/tinycc/tcc $(INCLUDES) -I. $(LIBS) $(CFLAGS) -run test/test.c
+	./lib/tinycc/tcc -bt10 -DCOMPILED_WITH_TCC $(INCLUDES) -I. $(LIBS) $(CFLAGS) -run test/test.c
 #	./lib/tinycc/tcc $(INCLUDES) -I. $(LIBS) $(CFLAGS) test/test.c -o build/test
 
 clang-test: clang-test-build
@@ -13,8 +13,8 @@ clang-test: clang-test-build
 clang-test-build:
 	clang $(CFLAGS) $(INCLUDES) -I. $(LIBS) -DSTACKTRACE_ON test/test.c -o build/test
 
-#clang-test-build:
-#	clang $(CFLAGS) $(INCLUDES) -I. $(LIBS) -DSTACKTRACE_ON build/sdl-test.c -o build/test
+clang-test-build2:
+	clang $(CFLAGS) $(INCLUDES) -I. $(LIBS) -DSTACKTRACE_ON build/evaled.c -o build/test
 #	./build/test
 
 clean:
