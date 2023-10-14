@@ -1038,3 +1038,148 @@ Now I have problems with compiling to C, where the cast doesn't end up in the ri
 * [x] Fix defn-and-call so that the cast is right in front of malloc
 
 Now it works! And the game works again!!! :D
+
+
+
+---------------
+
+
+
+Next up I want to add support for declaring structs.
+
+I don't know how to think about the typing for these.
+
+```
+{:x :int
+ :y :int}
+```
+
+Somehow, they feel similar to variables, just inside something else.
+
+So it kind of feels like the "whole" has one type, then the kvs has their own types. Kind of like ?t and ?t:x ?t:y and so on.
+
+----------------------------------------------
+
+I just saw [Mike Acton's talk on data oriented programming](https://www.youtube.com/watch?v=rX0ItVEVjHc) and thought it was pretty neat. I like the ideas of only solving the problem you have to solve, and move away from abstractions. In this view, Vajer would really be C but with live coding and code generation (macros), and I guess possibly the nicety of type inference for a little bit less typing.
+
+I think it might be nice to write down what I miss from C, that I would like Vajer to have.
+
+* Dynamic lists
+  * The question is, how often do I really need a growable list, and how often could I just use a fixed size list?
+* Dispatch
+  * How often do I actually need dispatch, and how often is it just a way to say "I pretend to not know about the problem"?
+  * As long as it is static dispatch, I figure it's more of a nicety for the coder, and it should become pretty fast still
+  * In term of dynamic dispatch, I figure it has to do with when I want more generic data structures
+* Live code
+  * Could this be just as well solved if I could always dump the data properly, and then restart the program
+  * Actually not, so maybe live coding is kinda valid
+  * Although I need to specify if I want to change functions, add functions, modify structs etc
+
+Niceties
+* Structural editing
+* Expressions :D
+* Pattern matching (??? maybe this is just cursed stuff again)
+
+---
+
+I mean, tbh, I just kinda wanna get on with this thing. I need to be able to interact with structs somehow (if nothing else those I get to/from C). And perhaps "records" or whatever should be another concept. I don't know.
+
+I also realized, that perhaps defining structs should care about the order, i.e. not be a hash map but rather a vector or something. Or it's just a macro with no fancy syntax.
+
+So, yeah. Huh. What now?
+
+I think that I could do the syntax for C-style structs first. Perhaps. And do the records later, if I ever feel like I even need them? But they might be cool!?
+
+Oooooh, that's right, probably even before that, I need to fix nesting / local environments. E.g. code like this:
+
+```
+(def a 10)
+
+(defn pront
+  [a]
+  (printf a)
+  )
+
+(defn main
+  []
+  (pront "hello"))
+```
+
+Here `a` in `pront` should be "hello".
+
+Maybe I should fix that first.
+
+* [x] Make a test for shadowing variables
+
+What happens?
+
+It tries to unify `[:char]` with `:int`.
+
+How to fix?
+
+Different type variables in different scopes.
+
+So `defn` must introduce a new scope of some sort.
+
+These scopes are on a stack, so if something isn't on the current scope's environment, it should "go up" one scope and look at that environment, and so on.
+
+Two problems arise:
+
+1. Defining these environments
+2. Reading from them
+
+Defining I think is pretty straight forward, whenever we encounter a `defn` we can say "ah, this is a new environment".
+
+But for 2.? I guess it's kinda the same. Whenever we encounter a `defn`, extract the environment from there, or something. Or I guess maybe extraction never needs to happen, it's just a stack while generating type variables. Maybe that's fine.
+
+* [ ] Implement a stack of environments for `assign_type_names` generation
+
+I guess `EnvKV **envs` might work. I should try it separately first.
+
+* [ ] Write a test for a stack of hashmaps
+
+-------------
+
+A different situation:
+
+```
+(defn pront1
+  [a]
+  (printf a)
+  )
+
+(defn pront2
+  [a]
+  (+ a 10)
+  )
+
+(defn main
+  []
+  (pront1 "hello")
+  (pront2 3))
+```
+
+--------------
+
+I think maybe it shouldn't neccesarily be a stack of environments. I think in the end, the type names should all be "global". So in the same vein, I think the environment should be a big structure. I'm thinking something like this:
+
+```
+Environment {
+  id: int
+  parent: Environment
+  children: Environment
+  locals: HashMap
+}
+```
+
+so each Environment can have a parent, and do lookup in the parent (and grandparent etc). But when generating typenames, it just concatenates all ids, like so: "0_10_4_type" which would mean "from environment 0, with child 10, with child 4, that grandchild environment has a type named type".
+
+Okay, so, I did something like this (`experiments/prototype.h`). Now I need to figure out... How to make use of it in the current env-generating code. I think essentially it goes like this:
+
+1. top-level env, `curenv`
+2. when encountering a new scope, like a function definition, add a child to `curenv`
+3. set `curenv` to that child
+4. when encountering a variable binding, put it in `curenv`
+5. when exiting the scope, set `curenv` to the parent of `curenv`
+
+Somehow the scope also needs to be associated with the relevant environment. I think just having the "path" (ids needed to go through the children) will work.

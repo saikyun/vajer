@@ -263,9 +263,9 @@ Constraint *generate_constraints(EnvKV *types, Constraint *constraints)
                 }
                 else if (strcmp(f, "cast") == 0)
                 {
-                    //AST *branch_type = get_types(types, &list[2]);
-                    //AST *cast_type = &list[1];
-                    //arrpush(constraints, ((Constraint){*cast_type, *branch_type}));
+                    // AST *branch_type = get_types(types, &list[2]);
+                    // AST *cast_type = &list[1];
+                    // arrpush(constraints, ((Constraint){*cast_type, *branch_type}));
                 }
                 else if (strcmp(f, "defn") == 0)
                 {
@@ -350,6 +350,7 @@ int is_var(AST *e)
 
 int occurs_check(AST *x, AST *y, EnvKV **env)
 {
+    // TODO: implement :P
     return 0;
 }
 

@@ -61,6 +61,8 @@ typedef enum TokenType
     TOKEN_CLOSE_PARENS,
     TOKEN_OPEN_BRACKET,
     TOKEN_CLOSE_BRACKET,
+    TOKEN_OPEN_BRACES,
+    TOKEN_CLOSE_BRACES,
 
     TOKEN_STRING,
     TOKEN_SYMBOL,
@@ -76,6 +78,8 @@ char *token_names[] = {
     ")",
     "[",
     "]",
+    "{",
+    "}",
     "\"",
     "SYMBOL",
     "NUMBER",
@@ -220,6 +224,16 @@ Token *tokenize(const char *str, int count)
             arrpush(tokens, ((Token){.type = TOKEN_CLOSE_BRACKET, .start = state.pos, .stop = state.pos + 1}));
             state.pos++;
         }
+        else if (c == '{')
+        {
+            arrpush(tokens, ((Token){.type = TOKEN_OPEN_BRACES, .start = state.pos, .stop = state.pos + 1}));
+            state.pos++;
+        }
+        else if (c == '}')
+        {
+            arrpush(tokens, ((Token){.type = TOKEN_CLOSE_BRACES, .start = state.pos, .stop = state.pos + 1}));
+            state.pos++;
+        }
         else if (c == ' ')
         {
             arrpush(tokens, whitespace(&state));
@@ -265,6 +279,8 @@ typedef enum ASTType
 {
     AST_LIST = 1,
 
+    AST_MAP,
+
     AST_STRING,
     AST_SYMBOL,
     AST_NUMBER,
@@ -285,12 +301,18 @@ TokenType closing_types[] = {
 };
 
 struct Ast;
+struct AstKV;
 
 typedef struct List
 {
     ListType type;
     struct AST *elements;
 } List;
+
+typedef struct Map
+{
+    struct AstKV *kvs;
+} Map;
 
 typedef struct SourceMapping
 {
@@ -307,12 +329,32 @@ typedef struct AST
     union
     {
         List list;
+        Map map;
         char *string;
         char *symbol;
         int number;
         int boolean;
     };
 } AST;
+
+typedef struct EnvKV
+{
+    AST *key;
+    AST *value;
+} EnvKV;
+
+typedef struct Env
+{
+    EnvKV *kvs;
+    struct Env *children;
+    struct Env *parent;
+} Env;
+
+typedef struct AstKV
+{
+    AST key;
+    AST value;
+} AstKV;
 
 typedef struct ParseState
 {
@@ -468,6 +510,86 @@ void _print_ast(PrintASTState *state, AST *el)
             log(")");
         else if (el->list.type == LIST_BRACKETS)
             log("]");
+        log("%s", ansi_clear);
+
+        state->line_len = 0;
+
+        break;
+    case AST_MAP:
+        log("%s", ansi_indent_color[state->indentation]);
+        log("{");
+        log("%s", ansi_clear);
+
+        if (arrlen(el->map.kvs) > 4)
+        {
+            state->line_len = 0;
+            state->indentation += 1;
+
+            for (int i = 0; i < hmlen(el->map.kvs); i++)
+            {
+
+                state->dark = !state->dark;
+
+                if (state->dark)
+                {
+                    log("%s", ansi_dark_background);
+                }
+                else
+                {
+                    log("%s", ansi_bright_background);
+                }
+
+                if (i > 0)
+                    print_indent(state->indentation);
+
+                log("%s", ansi_clear);
+
+                state->line_len = 0;
+                _print_ast(state, &el->map.kvs[i].key);
+                log(" ");
+                _print_ast(state, &el->map.kvs[i].value);
+
+                if (i < hmlen(el->map.kvs) - 0)
+                {
+                    log("\n");
+                }
+            }
+
+            state->indentation -= 1;
+        }
+        else
+        {
+            state->line_len += hmlen(el->map.kvs);
+
+            for (int i = 0; i < hmlen(el->map.kvs); i++)
+            {
+                _print_ast(state, &el->map.kvs[i].key);
+                log(" ");
+                _print_ast(state, &el->map.kvs[i].value);
+
+                if (i < hmlen(el->map.kvs) - 1)
+                {
+                    log(",");
+                    log(" ");
+                }
+            }
+        }
+
+        if (state->dark)
+        {
+            log("%s", ansi_dark_background);
+        }
+        else
+        {
+            log("%s", ansi_bright_background);
+        }
+
+        // print_indent(state->indentation);
+
+        log("%s", ansi_clear);
+
+        log("%s", ansi_indent_color[state->indentation]);
+        log("}");
         log("%s", ansi_clear);
 
         state->line_len = 0;
@@ -658,6 +780,59 @@ AST parse_list(ParseState *state, ListType list_type)
     return (AST){.ast_type = AST_LIST, .list = list, .source = (SourceMapping){.start = source_start, .stop = source_stop}};
 }
 
+AST parse_map(ParseState *state)
+{
+    int start = state->pos;
+    int source_start = state->tokens[start].start;
+    int source_stop = -1;
+    state->pos++; // skip over initial opening token
+    Map map = {.kvs = NULL};
+
+    int done = 0;
+
+    int is_key = 1;
+
+    AST key_ast = {};
+
+    while (1)
+    {
+        if (state->pos >= arrlen(state->tokens))
+        {
+            log("\033[0;31mno closing braces:\033[0m\n");
+            sai_assert(0);
+        }
+
+        if (state->tokens[state->pos].type == TOKEN_CLOSE_BRACES)
+        {
+            if (!is_key)
+            {
+                log("uneven number of kvs in map\n");
+                sai_assert(0);
+            }
+
+            source_stop = state->tokens[state->pos].stop;
+            state->pos++;
+            break;
+        }
+
+        AST ast = parse(state);
+        if (ast.ast_type != AST_EMPTY)
+        {
+            if (is_key)
+            {
+                key_ast = ast;
+            }
+            else
+            {
+                hmput(map.kvs, key_ast, ast);
+            }
+            is_key = !is_key;
+        }
+    }
+
+    return (AST){.ast_type = AST_MAP, .map = map, .source = (SourceMapping){.start = source_start, .stop = source_stop}};
+}
+
 AST value_type_int = {.ast_type = AST_SYMBOL, .symbol = ":int"};
 AST value_type_boolean = {.ast_type = AST_SYMBOL, .symbol = ":int"};
 AST value_type_void = {.ast_type = AST_SYMBOL, .symbol = ":void"};
@@ -681,6 +856,10 @@ AST parse(ParseState *state)
     else if (token.type == TOKEN_OPEN_BRACKET)
     {
         return parse_list(state, LIST_BRACKETS);
+    }
+    else if (token.type == TOKEN_OPEN_BRACES)
+    {
+        return parse_map(state);
     }
     else if (token.type == TOKEN_SYMBOL)
     {
@@ -756,12 +935,6 @@ AST *parse_all(const char *code, Token *tokens)
 
 ////////////////// Add types ///////////////////////////
 
-typedef struct EnvKV
-{
-    AST *key;
-    AST *value;
-} EnvKV;
-
 typedef struct TypeState
 {
     EnvKV *globals;
@@ -777,6 +950,20 @@ int in_types(EnvKV *types, AST *e)
     return 0;
 }
 
+AST *get_in_env(Env *env, AST *k)
+{
+    for (int i = 0; i < hmlen(env->kvs); i++)
+    {
+        if (ast_eq(env->kvs[i].key, k))
+            return env->kvs[i].value;
+    }
+
+    if (env->parent)
+        return get_in_env(env->parent, k);
+
+    return NULL;
+}
+
 AST *get_types(EnvKV *types, AST *e)
 {
     for (int i = 0; i < hmlen(types); i++)
@@ -784,6 +971,7 @@ AST *get_types(EnvKV *types, AST *e)
         if (ast_eq(types[i].key, e))
             return types[i].value;
     }
+
     return NULL;
 }
 
@@ -1364,12 +1552,12 @@ void c_compile_do(CCompilationState *state, AST node)
 
 void c_compile_cast(CCompilationState *state, AST node)
 {
-//    print_ast(&node);
-//    string(&state->source, "(");
-//    c_compile_type(state, node.list.elements[1]);
-//    string(&state->source, ")(");
+    //    print_ast(&node);
+    //    string(&state->source, "(");
+    //    c_compile_type(state, node.list.elements[1]);
+    //    string(&state->source, ")(");
     c_compile(state, node.list.elements[2]);
-//    string(&state->source, ")");
+    //    string(&state->source, ")");
 }
 
 void c_compile_upscope(CCompilationState *state, AST node)

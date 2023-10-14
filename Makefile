@@ -4,6 +4,9 @@ INCLUDES=-Ilib -I/usr/local/include/SDL2 -I/usrc/local/include/SDL2_ttf
 LIBS=-Llib/tinycc -ltcc -L/usr/local/lib -lSDL2 
 
 test: FORCE
+# experiment
+#	./lib/tinycc/tcc -bt10 -DCOMPILED_WITH_TCC $(INCLUDES) -I. $(LIBS) $(CFLAGS) -run experiments/prototype.c
+# standard one
 	./lib/tinycc/tcc -bt10 -DCOMPILED_WITH_TCC $(INCLUDES) -I. $(LIBS) $(CFLAGS) -run test/test.c
 #	./lib/tinycc/tcc $(INCLUDES) -I. $(LIBS) $(CFLAGS) test/test.c -o build/test
 

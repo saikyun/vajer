@@ -251,6 +251,11 @@ MU_TEST(test_infer_defn_void)
     eval(slurp("test/inference/defn-void.lisp"));
 }
 
+MU_TEST(test_infer_same_symbol)
+{
+    eval(slurp("test/inference/same-symbol.lisp"));
+}
+
 MU_TEST_SUITE(test_suite_inference)
 {
     MU_RUN_TEST(test_basic_unification);
@@ -270,4 +275,6 @@ MU_TEST_SUITE(test_suite_inference)
     MU_RUN_TEST(test_infer_defn_and_call);
 
     MU_RUN_TEST(test_infer_defn_void);
+
+    MU_RUN_TEST(test_infer_same_symbol);
 }

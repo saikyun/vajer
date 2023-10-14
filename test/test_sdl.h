@@ -4,7 +4,7 @@
 
 MU_TEST(test_sdl_init)
 {
-    eval(slurp("lisp/sdl-test.lisp"));
+    eval(slurp("lisp/sdl-test-structs.lisp"));
 }
 
 MU_TEST_SUITE(test_sdl_suite)
