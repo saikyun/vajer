@@ -59,6 +59,11 @@ EnvKV *standard_environment()
     }
     {
         AST *type = (AST *)malloc(sizeof(AST));
+        *type = list5(symbol("?T"), symbol("?T2"), symbol("?T3"), symbol("->"), value_type_void);
+        hmput(env, new_symbol(":="), type);
+    }
+    {
+        AST *type = (AST *)malloc(sizeof(AST));
         *type = list4(symbol("?T"), symbol("?T"), symbol("->"), value_type_void);
         hmput(env, new_symbol("var"), type);
     }
@@ -72,6 +77,11 @@ EnvKV *standard_environment()
         *type = list4(symbol("?T"), symbol("?T"), symbol("->"), value_type_void);
         hmput(env, new_symbol("declare"), type);
     }
+    {
+        AST *type = (AST *)malloc(sizeof(AST));
+        *type = list4(symbol("?T"), symbol("?T"), symbol("->"), value_type_void);
+        hmput(env, new_symbol("defstruct"), type);
+    }
 
     return env;
 }
@@ -81,6 +91,108 @@ EnvKV *standard_environment()
 //
 //
 
+typedef struct ScopeKV
+{
+    char *key;
+    char *value;
+} ScopeKV;
+
+typedef struct Scope
+{
+    ScopeKV *kvs;
+    struct Scope *children;
+    struct Scope *parent;
+} Scope;
+
+char *get_in_scopes(Scope *scope, char *k)
+{
+    char *res = shget(scope->kvs, k);
+    if (res)
+        return res;
+    if (scope->parent)
+        return get_in_scopes(scope->parent, k);
+    return NULL;
+}
+
+typedef struct ScopeState
+{
+    Scope *scope;
+    int gensym;
+} ScopeState;
+
+char *scope_gensym(ScopeState *state, char *sym)
+{
+    int len = snprintf(NULL, 0, "%d", state->gensym) + strlen(sym) + 10;
+    char *str = malloc(len * sizeof(char));
+    snprintf(str, len, "%s__SCOPE__%d", sym, state->gensym);
+    state->gensym++;
+    return str;
+}
+
+void _ast_add_scope(ScopeState *state, AST *ast)
+{
+    switch (ast->ast_type)
+    {
+    case AST_LIST:
+    {
+        AST *elems = ast->list.elements;
+
+        Scope *parent = 0;
+
+        if (ast->list.type == LIST_PARENS && arrlen(elems) > 0)
+        {
+            if (elems[0].ast_type == AST_SYMBOL && strcmp(elems[0].symbol, "defn") == 0)
+            {
+                parent = state->scope;
+                Scope *child = &(Scope){.parent = parent};
+                state->scope = child;
+
+                AST *args = elems[2].list.elements;
+
+                for (int i = 0; i < arrlen(args); i++)
+                {
+                    shput(state->scope->kvs, args[i].symbol, scope_gensym(state, args[i].symbol));
+                }
+            }
+        }
+
+        for (int i = 0; i < arrlen(elems); i++)
+        {
+            _ast_add_scope(state, &elems[i]);
+        }
+
+        if (parent)
+        {
+            state->scope = parent;
+        }
+
+        break;
+    }
+    case AST_SYMBOL:
+    {
+        char *alias = get_in_scopes(state->scope, ast->symbol);
+        if (alias)
+        {
+            ast->symbol = alias;
+        }
+        break;
+    }
+
+    default:
+        break;
+    }
+}
+
+void ast_add_scopes(AST *ast)
+{
+    ScopeState state = {.scope = &(Scope){}};
+    for (int i = 0; i < arrlen(ast); i++)
+    {
+        _ast_add_scope(&state, &ast[i]);
+    }
+    // return state.types;
+}
+
 AST *vajer_ast(char *code)
 {
     log("\e[34m>> code\n\e[0m%s\n", code);
@@ -89,6 +201,12 @@ AST *vajer_ast(char *code)
 
     AST *root_nodes = parse_all(code, tokens);
     log("\n\e[35m>> parsed\n\e[0m");
+    print_ast_list(root_nodes);
+    log("\n");
+
+    ast_add_scopes(root_nodes);
+
+    log("\n\e[43m>> with scopes\e[0m\n");
     print_ast_list(root_nodes);
     log("\n");
 
@@ -201,5 +319,5 @@ void eval(char *code)
     sai_assert(tcc_compile_string(s, src.str) != -1);
 
     tcc_run(s, 0, NULL);
-    */    
+    */
 }

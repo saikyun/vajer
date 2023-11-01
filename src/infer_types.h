@@ -86,6 +86,9 @@ AST *generics_to_specific(TypeNameState *state, AST *t)
     return _generics_to_specific(state, t, &generic_types);
 }
 
+// this is where all structs are stored
+AST STRUCT_KEY = (AST){.ast_type = AST_SYMBOL, .symbol = "__structs"};
+
 // assigns type names for unknown types
 // assigns concrete types like :int for numbers, [:char] for string
 void _assign_type_names(TypeNameState *state, AST *e)
@@ -101,6 +104,61 @@ void _assign_type_names(TypeNameState *state, AST *e)
             list[1].value_type = type;
             hmput(state->types, &list[1], type);
         }
+        else if (arrlen(list) > 0 && list[0].ast_type == AST_SYMBOL && strcmp(list[0].symbol, "defstruct") == 0)
+        {
+            AST *name = &list[1];
+            AST *map = &list[2];
+            AST *els = NULL;
+
+            if (!hmget(state->types, &STRUCT_KEY))
+            {
+                hmput(state->types, &STRUCT_KEY, new_map((AST){.ast_type = AST_MAP, .map = (Map){}}));
+            }
+
+            AST *structs = hmget(state->types, &STRUCT_KEY);
+
+            hmput(structs->map.kvs, *name, *map);
+
+            sai_assert(map->ast_type == AST_MAP);
+
+            for (int i = 0; i < hmlen(map->map.kvs); i++)
+            {
+                print_ast(&map->map.kvs[i].value);
+                arrpush(els, map->map.kvs[i].value);
+            }
+
+            arrpush(els, symbol("->"));
+
+            AST type = (AST){.ast_type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
+
+            String new_name = (String){};
+
+            strstr(&new_name, ":", name->symbol);
+
+            AST *new_name_ast = new_symbol(new_name.str);
+
+            arrpush(els, *new_name_ast);
+
+            hmput(state->types, new_name_ast, map);
+            name->value_type = new_list(type);
+            hmput(state->types, name, name->value_type);
+        }
+        /*
+        else if (arrlen(list) > 0 && list[0].ast_type == AST_SYMBOL && strcmp(list[0].symbol, "get") == 0)
+        {
+            for (int i = 1; i < arrlen(list); i++)
+            {
+                _assign_type_names(state, &list[i]);
+            }
+            e->value_type = new_list(list3(symbol("in"), *list[1].value_type, list[2]));
+            log("huh: ");
+            print_ast(list[1].value_type);
+            log("huh: ");
+            print_ast(&list[2]);
+            print_ast(e);
+            hmput(state->types, e, e->value_type);
+        }
+        */
         else if (arrlen(list) > 0 && list[0].ast_type == AST_SYMBOL && strcmp(list[0].symbol, "cast") == 0)
         {
             AST *type = &list[1];
@@ -149,6 +207,23 @@ void _assign_type_names(TypeNameState *state, AST *e)
             e->value_type = new_symbol(gentype(state));
             hmput(state->types, e, e->value_type);
         }
+        break;
+    }
+    case AST_MAP:
+    {
+        for (int i = 0; i < hmlen(e->map.kvs); i++)
+        {
+            AstKV kv = e->map.kvs[i];
+            _assign_type_names(state, &e->map.kvs[i].value);
+            printf("wat: ");
+            print_ast(&e->map.kvs[i].value);
+        }
+
+        e->value_type = new_map(map1(e->map.kvs[0].key, *e->map.kvs[0].value.value_type));
+        hmput(state->types, e, e->value_type);
+        printf("wat: ");
+        print_ast(e);
+
         break;
     }
     case AST_SYMBOL:
@@ -229,6 +304,23 @@ Constraint *generate_constraints(EnvKV *types, Constraint *constraints)
                     AST *last_type = get_types(types, &arrlast(list));
 
                     arrpush(constraints, ((Constraint){*ret_type, *last_type, e, &arrlast(list)}));
+                }
+                else if (strcmp(f, "get") == 0)
+                {
+                    AST map = list[1];
+                    AST key = list[2];
+
+                    arrpush(constraints, ((Constraint){*get_types(types, &map), list3(symbol(":has"), key, *kv.value), &map, e}));
+                }
+                else if (strcmp(f, ":=") == 0)
+                {
+                    AST map = list[1];
+                    AST key = list[2];
+                    AST value = list[3];
+
+                    arrpush(constraints, ((Constraint){*get_types(types, &map), list3(symbol(":has"), key, *kv.value), &map, e}));
+
+                    arrpush(constraints, ((Constraint){*kv.value, *get_types(types, &value), kv.key, &value}));
                 } /*
                  else if (strcmp(f, "in") == 0)
                  {
@@ -333,6 +425,8 @@ Constraint *generate_constraints(EnvKV *types, Constraint *constraints)
             break;
         case AST_BOOLEAN:
             break;
+        case AST_MAP:
+            break;
         default:
             log("unhandled ast for generate_constraints: ");
             print_ast(e);
@@ -356,6 +450,11 @@ int occurs_check(AST *x, AST *y, EnvKV **env)
 
 int unify(AST *x, AST *y, EnvKV **env);
 
+int is_has(AST *x)
+{
+    return x->ast_type == AST_LIST && arrlen(x->list.elements) == 3 && x->list.elements[0].ast_type == AST_SYMBOL && strcmp(x->list.elements[0].symbol, ":has") == 0;
+}
+
 int unify_variable(AST *v, AST *x, EnvKV **env)
 {
     sai_assert(is_var(v));
@@ -374,7 +473,21 @@ int unify_variable(AST *v, AST *x, EnvKV **env)
         return 0;
     else
     {
-        hmput(*env, v, x);
+        log(">>>>>>>>>>>>>>>>>> putting!");
+        print_ast(v);
+        print_ast(x);
+
+        if (is_has(x))
+        {
+            AST *structy = new_map(map1(x->list.elements[1], x->list.elements[2]));
+            log("map!\n");
+            print_ast(structy);
+            hmput(*env, v, structy);
+        }
+        else
+        {
+            hmput(*env, v, x);
+        }
         return 1;
     }
 }
@@ -391,32 +504,122 @@ int unify(AST *x, AST *y, EnvKV **env)
         return unify_variable(y, x, env);
     else if (x->ast_type == AST_LIST && y->ast_type == AST_LIST)
     {
-        if (arrlen(x->list.elements) == 0 && arrlen(y->list.elements) == 0)
+        AST has = symbol(":has");
+        if (ast_eq(&y->list.elements[0], &has) && ast_eq(&x->list.elements[0], &has))
         {
-            log("in list, could not unify (empty)\n");
-            prin_ast(x);
-            log(" = ");
-            print_ast(y);
-            return 0;
-        }
+            log("all structs: ");
+            print_ast(hmget(*env, &STRUCT_KEY));
 
-        if (arrlen(x->list.elements) != arrlen(y->list.elements))
-        {
-            log("in list, could not unify (differing length)\n");
-            prin_ast(x);
-            log(" = ");
-            print_ast(y);
-            return 0;
-        }
+            AstKV *structs = hmget(*env, &STRUCT_KEY)->map.kvs;
 
-        for (int i = 0; i < arrlen(x->list.elements); i++)
-        {
-            if (unify(&x->list.elements[i], &y->list.elements[i], env) == 0)
+            for (int i = 0; i < hmlen(structs); i++)
             {
-                log("in list, could not unify\n");
-                prin_ast(&x->list.elements[i]);
+                AstKV *x_found = 0;
+                AstKV *y_found = 0;
+
+                AstKV value = structs[i];
+                AstKV *fields = value.value.map.kvs;
+
+                for (int j = 0; j < hmlen(fields); j++)
+                {
+                    AstKV field = fields[j];
+                    print_ast(&field.value);
+
+                    if (ast_eq(&field.key, &y->list.elements[1]))
+                    {
+                        y_found = &fields[j];
+                    }
+
+                    if (ast_eq(&field.key, &x->list.elements[1]))
+                    {
+                        x_found = &fields[j];
+                    }
+                }
+
+                if (x_found && y_found)
+                {
+                    if (unify(&x_found->value, &x->list.elements[2], env) && unify(&y_found->value, &y->list.elements[2], env))
+                    {
+                        log("found a match!");
+                        return 1;
+                    }
+                }
+            }
+
+            sai_assert(0);
+
+            return 0;
+        }
+        else
+        {
+
+            if (arrlen(x->list.elements) == 0 && arrlen(y->list.elements) == 0)
+            {
+                log("in list, could not unify (empty)\n");
+                prin_ast(x);
                 log(" = ");
-                print_ast(&y->list.elements[i]);
+                print_ast(y);
+                return 0;
+            }
+
+            if (arrlen(x->list.elements) != arrlen(y->list.elements))
+            {
+                log("in list, could not unify (differing length)\n");
+                prin_ast(x);
+                log(" = ");
+                print_ast(y);
+                return 0;
+            }
+
+            for (int i = 0; i < arrlen(x->list.elements); i++)
+            {
+                if (unify(&x->list.elements[i], &y->list.elements[i], env) == 0)
+                {
+                    log("in list, could not unify\n");
+                    prin_ast(&x->list.elements[i]);
+                    log(" = ");
+                    print_ast(&y->list.elements[i]);
+                    return 0;
+                }
+            }
+
+            return 1;
+        }
+    }
+    else if (x->ast_type == AST_SYMBOL && y->ast_type == AST_LIST || y->ast_type == AST_SYMBOL && x->ast_type == AST_LIST)
+    {
+        if (x->ast_type == AST_LIST)
+        {
+            AST *temp = x;
+            x = y;
+            y = temp;
+        }
+
+        AST has = symbol(":has");
+
+        sai_assert(ast_eq(&y->list.elements[0], &has));
+
+        if (unify(get_in_map(get_types(*env, x)->map.kvs, &y->list.elements[1]), &y->list.elements[2], env) == 0)
+        {
+            log("in map could not unify");
+            return 0;
+        }
+
+        return 1;
+    }
+    else if (x->ast_type == AST_MAP && y->ast_type == AST_MAP)
+    {
+        printf("maps:\n");
+        print_ast(x);
+        print_ast(y);
+
+        sai_assert(hmlen(x->map.kvs) == hmlen(y->map.kvs));
+
+        for (int i = 0; i < hmlen(x->map.kvs); i++)
+        {
+            if (unify(&x->map.kvs[i].value, get_in_map(y->map.kvs, &y->map.kvs[i].key), env) == 0)
+            {
+                log("in map could not unify");
                 return 0;
             }
         }
@@ -553,6 +756,10 @@ void ast_resolve_types(EnvKV *env, AST *ast)
                 else
                     sai_assert(0);
             }
+            else if (strcmp(ast->list.elements[0].symbol, "get") == 0)
+            {
+                sai_assert(ast->value_type);
+            }
             else if (strcmp(ast->list.elements[0].symbol, "cast") == 0)
             {
                 AST *cast_type = &ast->list.elements[1];
@@ -573,6 +780,9 @@ void ast_resolve_types(EnvKV *env, AST *ast)
             else if (strcmp(ast->list.elements[0].symbol, "declare") == 0)
             {
             }
+            else if (strcmp(ast->list.elements[0].symbol, "defstruct") == 0)
+            {
+            }
             else
             {
                 log("no type for ");
@@ -589,6 +799,9 @@ void ast_resolve_types(EnvKV *env, AST *ast)
     case AST_STRING:
         break;
     case AST_BOOLEAN:
+        break;
+    case AST_MAP:
+        log("ignoring map resolve type :O\n");
         break;
     default:
         log("unhandled ast for ast_resolve_types: ");
@@ -644,6 +857,7 @@ void ast_resolve_types_all(EnvKV *env, char *code, AST *ast)
     CURRENT_CODE = code;
     for (int i = 0; i < arrlen(constraints); i++)
     {
+        log("trying: ");
         prin_ast(&constraints[i].left);
         log(" = ");
         print_ast(&constraints[i].right);
@@ -666,7 +880,9 @@ void ast_resolve_types_all(EnvKV *env, char *code, AST *ast)
     log("\n");
 
     log(">> \e[35menv before resolution\e[0m\n");
-    // print_env(env);
+    print_env(env);
+    log("\n\n");
+
     for (int i = 0; i < arrlen(ast); i++)
     {
         ast_resolve_types(env, &ast[i]);

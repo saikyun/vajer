@@ -264,8 +264,8 @@ void init_sig_handler(char *exe_path)
 #else
 
 #define CRITICAL() printf("stack trace goes here\n")
-void init_sig_handler(char *exe_path) {
-    
+void init_sig_handler(char *exe_path)
+{
 }
 
 #endif

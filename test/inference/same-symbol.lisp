@@ -9,4 +9,5 @@
 
 (defn main
   []
-  (pront "hello"))
+  (pront "hello\n")
+  0)

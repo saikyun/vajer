@@ -256,6 +256,16 @@ MU_TEST(test_infer_same_symbol)
     eval(slurp("test/inference/same-symbol.lisp"));
 }
 
+MU_TEST(test_infer_struct)
+{
+    eval(slurp("test/inference/struct.lisp"));
+}
+
+MU_TEST(test_infer_bigger_struct)
+{
+    eval(slurp("test/inference/bigger-struct.lisp"));
+}
+
 MU_TEST_SUITE(test_suite_inference)
 {
     MU_RUN_TEST(test_basic_unification);
@@ -277,4 +287,8 @@ MU_TEST_SUITE(test_suite_inference)
     MU_RUN_TEST(test_infer_defn_void);
 
     MU_RUN_TEST(test_infer_same_symbol);
+
+    MU_RUN_TEST(test_infer_struct);
+
+    MU_RUN_TEST(test_infer_bigger_struct);
 }

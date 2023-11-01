@@ -43,27 +43,25 @@
       (set j (+ j 1)))))
 
 (defstruct Map
-   :data   [:char]
-   :width  :int
-   :height :int)
-
-(def map (Map (malloc 10) 10 10))
+   {data   [:char]
+    width  :int
+    height :int})
 
 (defn move_boulder
-  [map from]
-  (var to (+ from (:width map)))
+  [mapre from]
+  (var to (+ from (get mapre width)))
   (var lul 0)
   (while (< lul 1)
     (do
-      (if (&& (== 0 (in (:data map) to))
-              (< to (* (:width map) (:height map))))
+      (if (&& (== 0 (in (get mapre data) to))
+              (< to (* (get mapre width) (get mapre height))))
         (do
           (printf "YOU DIED\n")
           (set dead 1)))
       (set lul 1)))
 
-  (put (:data map) from 1)
-  (put (:data map) to 4))
+  (put (get mapre data) from 1)
+  (put (get mapre data) to 4))
 
 (defn move
   [map from to]
@@ -179,13 +177,19 @@
   (put symbols_list 3 goldsym)
   (put symbols_list 4 boulder)
 
+
+
+
+  (def map_s (cast :Map {data (cast [:char] (malloc (* 8 8)))
+                         width 8
+                         height 8}))
+
   (var tilesize 8)
-  (var mapw 8)
-  (var maph 8)
-  (var maplen (* mapw maph))
-  (var map (cast [:int] (malloc (* (sizeof int) (+ 1 maplen)))))
-  (memset map 0 maplen)
-  (put map maplen 0)
+  (var maplen (* (get map_s width) (get map_s height)))
+
+  # (var map (cast [:int] (malloc (* (sizeof int) (+ 1 maplen)))))
+  (memset (get map_s data) 0 maplen)
+  (put (get map data) maplen 0)
 
   (printf "map\n")
 
@@ -193,23 +197,23 @@
   (while (< i maplen)
     (do
       (if (< 15 (% (rand) 20))
-        (put map i 3)
-        (put map i 2))
+        (put (get map data) i 3)
+        (put (get map data) i 2))
       (set i (+ i 1))))
 
   (var i2 0)
   (while (< i2 maplen)
     (do
       (if (< 15 (% (rand) 20))
-        (put map i2 4))
+        (put (get map data) i2 4))
       (set i2 (+ i2 1))))
 
-  (put map 5 0)
+  (put (get map data) 5 0)
 
   (SDL_Init SDL_INIT_VIDEO)
   (var window
        (SDL_CreateWindow "Little Line"
-                         100 100 (* mapw tilesize) (* maph tilesize)
+                         100 100 (* (get map_s width) tilesize) (* (get map_s height) tilesize)
                          SDL_WINDOW_OPENGL))
 
   (var renderer (SDL_CreateRenderer window -1 SDL_RENDERER_ACCELERATED))
@@ -231,14 +235,16 @@
           (if (&& (== 0 dead)
                   (== e.type SDL_KEYDOWN))
             (do
-              (if (== e.key.keysym.sym SDLK_w)
-                (move_up map mapw maph))
-              (if (== e.key.keysym.sym SDLK_s)
-                (move_down map mapw maph))
-              (if (== e.key.keysym.sym SDLK_a)
-                (move_left map mapw maph))
-              (if (== e.key.keysym.sym SDLK_d)
-                (move_right map mapw maph))))))
+              #(if (== e.key.keysym.sym SDLK_w)
+              #  (move_up map mapw maph))
+              #(if (== e.key.keysym.sym SDLK_s)
+              #  (move_down map mapw maph))
+              #(if (== e.key.keysym.sym SDLK_a)
+              #  (move_left map mapw maph))
+              #(if (== e.key.keysym.sym SDLK_d)
+              #  (move_right map mapw maph))
+              
+                ))))
 
       (SDL_SetRenderDrawColor renderer 0 0 0 255)
       (SDL_RenderClear renderer)
@@ -247,16 +253,16 @@
 
       (var x 0)
       (var y 0)
-      (while (< y maph)
+      (while (< y (get map height))
         (do
-          (while (< x mapw)
+          (while (< x (get map width))
             (do
-              (var pos  (+ x (* y mapw)))
-              (if (&& (== (in map pos) 4)
-                      (|| (== (in map (+ pos mapw)) 0)
-                          (== (in map (+ pos mapw)) 1)))
-                (move_boulder map mapw maph pos))
-              (draw_symbol renderer symbols_list (in map pos) (* x tilesize) (* y tilesize))
+              (var pos  (+ x (* y (get map width))))
+              (if (&& (== (in (get map data) pos) 4)
+                      (|| (== (in (get map data) (+ pos mapw)) 0)
+                          (== (in (get map data) (+ pos mapw)) 1)))
+                (move_boulder map pos))
+              (draw_symbol renderer symbols_list (in (get map data) pos) (* x tilesize) (* y tilesize))
               (set x (+ x 1))))
           (set x 0)
           (set y (+ y 1))))

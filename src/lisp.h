@@ -13,8 +13,10 @@ size_t log_size;
 
 #ifdef COMPILED_WITH_TCC
 int tcc_backtrace(const char *fmt, ...);
-#define log(...) \
+#define log123(...) \
     fprintf(log_stream, __VA_ARGS__)
+#define log(...) \
+    printf(__VA_ARGS__)
 #else
 
 #define log(...) \
@@ -641,6 +643,19 @@ AST *ast_last(AST *list)
     return ast_in(list, arrlen(list->list.elements) - 1);
 }
 
+int ast_eq(AST *n1, AST *n2);
+
+AST *get_in_map(AstKV *map, AST *k)
+{
+    for (int i = 0; i < hmlen(map); i++)
+    {
+        if (ast_eq(&map[i].key, k))
+            return &map[i].value;
+    }
+
+    return NULL;
+}
+
 int ast_eq(AST *n1, AST *n2)
 {
     if (n1->ast_type != n2->ast_type)
@@ -654,6 +669,16 @@ int ast_eq(AST *n1, AST *n2)
         for (int i = 0; i < arrlen(n1->list.elements); i++)
         {
             if (!ast_eq(&n1->list.elements[i], &n2->list.elements[i]))
+                return 0;
+        }
+        return 1;
+        break;
+    case AST_MAP:
+        if (hmlen(n1->map.kvs) != hmlen(n2->map.kvs))
+            return 0;
+        for (int i = 0; i < hmlen(n1->map.kvs); i++)
+        {
+            if (!ast_eq(&n1->map.kvs[i].value, get_in_map(n2->map.kvs, &n1->map.kvs[i].key)))
                 return 0;
         }
         return 1;
@@ -683,6 +708,13 @@ AST list1(AST n1)
     AST *els = NULL;
     arrpush(els, n1);
     return (AST){.ast_type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = els}};
+}
+
+AST map1(AST k, AST v)
+{
+    AstKV *kvs = NULL;
+    hmput(kvs, k, v);
+    return (AST){.ast_type = AST_MAP, .map = kvs};
 }
 
 AST list2(AST n1, AST n2)
@@ -739,6 +771,20 @@ AST *new_symbol(char *sym)
     AST *s = (AST *)malloc(sizeof(AST));
     *s = symbol(sym);
     return s;
+}
+
+AST *new_list(AST list)
+{
+    AST *l = (AST *)malloc(sizeof(AST));
+    *l = list;
+    return l;
+}
+
+AST *new_map(AST map)
+{
+    AST *m = (AST *)malloc(sizeof(AST));
+    *m = map;
+    return m;
 }
 
 AST parse(ParseState *state);
@@ -836,6 +882,7 @@ AST parse_map(ParseState *state)
 AST value_type_int = {.ast_type = AST_SYMBOL, .symbol = ":int"};
 AST value_type_boolean = {.ast_type = AST_SYMBOL, .symbol = ":int"};
 AST value_type_void = {.ast_type = AST_SYMBOL, .symbol = ":void"};
+AST value_type_symbol = {.ast_type = AST_SYMBOL, .symbol = ":symbol"};
 
 AST *value_type_string()
 {
@@ -1247,6 +1294,35 @@ SymAST transform_put(CTransformState *state, AST *node)
     }
 }
 
+SymAST transform_insert(CTransformState *state, AST *node)
+{
+    sai_assert(arrlen(node->list.elements) == 4);
+
+    SymAST value = transform(state, &node->list.elements[3]);
+
+    if (value.sym == NULL)
+    {
+        log("WAAaaaaa <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
+        node->list.elements[3] = value.ast;
+        return (SymAST){.sym = NULL, .ast = *node};
+    }
+    else
+    {
+        log("reeeeeeeee <");
+        AST *vt = node->list.elements[3].value_type;
+        node->list.elements[3] = symbol(value.sym);
+        node->list.elements[3].value_type = vt;
+        AST upscope = list4(
+            symbol("upscope"),
+            list2(symbol("var"), node->list.elements[3]),
+            value.ast,
+            *node);
+        upscope.value_type = &value_type_void;
+        upscope.no_semicolon = true;
+        return (SymAST){.sym = NULL, .ast = upscope};
+    }
+}
+
 SymAST transform_funcall(CTransformState *state, AST *node)
 {
     char *sym = gensym(state);
@@ -1379,6 +1455,10 @@ SymAST transform_list(CTransformState *state, AST *node)
         {
             return transform_set(state, node);
         }
+        else if (strcmp(head.symbol, ":=") == 0)
+        {
+            return transform_insert(state, node);
+        }
         else if (strcmp(head.symbol, "put") == 0)
         {
             return transform_put(state, node);
@@ -1396,6 +1476,10 @@ SymAST transform_list(CTransformState *state, AST *node)
             return (SymAST){.sym = NULL, .ast = *node};
         }
         else if (strcmp(head.symbol, "declare") == 0)
+        {
+            return (SymAST){.sym = NULL, .ast = *node};
+        }
+        else if (strcmp(head.symbol, "defstruct") == 0)
         {
             return (SymAST){.sym = NULL, .ast = *node};
         }
@@ -1552,12 +1636,54 @@ void c_compile_do(CCompilationState *state, AST node)
 
 void c_compile_cast(CCompilationState *state, AST node)
 {
-    //    print_ast(&node);
-    //    string(&state->source, "(");
-    //    c_compile_type(state, node.list.elements[1]);
-    //    string(&state->source, ")(");
+    print_ast(&node);
+    string(&state->source, "(");
+    c_compile_type(state, node.list.elements[1]);
+    string(&state->source, ")");
     c_compile(state, node.list.elements[2]);
-    //    string(&state->source, ")");
+    // string(&state->source, ")");
+}
+
+void c_compile_get(CCompilationState *state, AST node)
+{
+    c_compile(state, node.list.elements[1]);
+    string(&state->source, ".");
+    c_compile(state, node.list.elements[2]);
+    // string(&state->source, ")");
+}
+
+void c_compile_insert(CCompilationState *state, AST node)
+{
+    c_compile(state, node.list.elements[1]);
+    string(&state->source, ".");
+    c_compile(state, node.list.elements[2]);
+    strstr(&state->source, " = ");
+    c_compile(state, node.list.elements[3]);
+}
+
+void c_compile_defstruct(CCompilationState *state, AST node)
+{
+    string(&state->source, "typedef struct ");
+    string(&state->source, node.list.elements[1].symbol);
+    string(&state->source, " {\n");
+
+    AstKV *map = node.list.elements[2].map.kvs;
+
+    state->indent += 2;
+
+    for (int i = 0; i < hmlen(map); i++)
+    {
+        c_compile_indentation(state);
+        c_compile_type(state, map[i].value);
+        string(&state->source, " ");
+        string(&state->source, map[i].key.symbol);
+        string(&state->source, ";\n");
+    }
+
+    state->indent -= 2;
+
+    string(&state->source, "} ");
+    string(&state->source, node.list.elements[1].symbol);
 }
 
 void c_compile_upscope(CCompilationState *state, AST node)
@@ -1760,9 +1886,21 @@ void c_compile_list(CCompilationState *state, AST node)
         {
             return c_compile_cast(state, node);
         }
+        else if (strcmp(head.symbol, "get") == 0)
+        {
+            return c_compile_get(state, node);
+        }
+        else if (strcmp(head.symbol, ":=") == 0)
+        {
+            return c_compile_insert(state, node);
+        }
         else if (strcmp(head.symbol, "declare") == 0)
         {
             // nothing
+        }
+        else if (strcmp(head.symbol, "defstruct") == 0)
+        {
+            return c_compile_defstruct(state, node);
         }
         else if (strcmp(head.symbol, "upscope") == 0)
         {
@@ -1819,6 +1957,26 @@ void c_compile_list(CCompilationState *state, AST node)
     }
 }
 
+void c_compile_map(CCompilationState *state, AST node)
+{
+    AstKV *map = node.map.kvs;
+
+    strstr(&state->source, "{\n");
+    state->indent += 2;
+    for (int i = 0; i < hmlen(map); i++)
+    {
+        c_compile_indentation(state);
+        strstr(&state->source, ".");
+        c_compile(state, map[i].key);
+        strstr(&state->source, " = ");
+        c_compile(state, map[i].value);
+        strstr(&state->source, ",\n");
+    }
+    state->indent -= 2;
+    c_compile_indentation(state);
+    strstr(&state->source, "}");
+}
+
 void c_compile(CCompilationState *state, AST node)
 {
     switch (node.ast_type)
@@ -1826,6 +1984,11 @@ void c_compile(CCompilationState *state, AST node)
     case AST_LIST:
     {
         return c_compile_list(state, node);
+        break;
+    }
+    case AST_MAP:
+    {
+        return c_compile_map(state, node);
         break;
     }
     case AST_SYMBOL:

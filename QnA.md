@@ -1183,3 +1183,122 @@ Okay, so, I did something like this (`experiments/prototype.h`). Now I need to f
 5. when exiting the scope, set `curenv` to the parent of `curenv`
 
 Somehow the scope also needs to be associated with the relevant environment. I think just having the "path" (ids needed to go through the children) will work.
+
+---------------------------------------
+
+Now it can handle scoped symbols!!! It turns out that it was easier than I thought. I just had to go through the tree, and rename all scoped symbols from `a` to `a__SCOPE__0` where `0` increases each time a new scoped symbol is introduced. Check `test/inference/same_symbol.lisp` to see what I'm testing (`a` in top level is not same as `a` in `pront`).
+
+I did do some of the prototype-stuff mentioned above. But instead of putting into the type inference stuff (I tried that before...) I instead made it a separate step: `eval.h/ast_add_scopes`.
+
+Nice.
+
+Next up is going back to the problem I wanted to solve in the beginning: defining structs. :)
+
+```
+// handle getting struct values
+(declare get [?T :symbol => ?T.symbol])
+
+// ...
+
+// handle unifying structs
+{x: ?t1, y: ?t2} = {x: int, y: [:char]}
+```
+
+Could structs be defined as tuples...? Fields are just offsets?
+
+Some other things I wrote in swedish:
+
+`(declare get [?T :symbol => ?T.symbol])`
+
+`?T` måste inte vara `?T.symbol`, den måste _ha_`?T.symbol`
+En struct kommer med ett gäng constraints:
+```clojure
+(defstruct EnvKV key value)
+
+(def entry (EnvKV "dog" "cat"))
+
+(printf (get entry key))
+;;=>
+:EnvKV.key = ?t1
+:EnvKV.value = ?t2
+:EnvKV = {key ?t1, value ?t2}
+EnvKV = (?t1 ?t2 => :EnvKV)
+entry = :EnvKV
+printf = ([:char] => :void)
+get = [?t3 :symbol => ?t3.symbol]
+(get ?t3 key) = ?t3.key = [:char]
+:EnvKV = ?t3
+```
+
+Unification måste förstå constraints som `{key ?t1, value ?t2}` och `?t3.symbol`.
+
+Börja med defstruct, låt den introducera en constraint/typ precis som `declare`.
+
+
+
+---* [ ] Put `defstruct` in a test---
+
+Hmm, do I even need a `defstruct`...? Maybe... But not now.
+
+* [x] Put `get` in a test
+
+How should the type for `get` really look? Hm.
+
+```
+(get {:name "hello} :name)
+;;
+[?T :keyword => [?T :keyword]]
+```
+
+This should lead to a constraint like this:
+```
+# assuming ?T is ?t
+?t = {value-of-kw ?t2}
+```
+
+
+------------------------
+
+
+Okay so, I think I got pretty far. It seems to type check pretty well.
+But now I need to figure out how to, in lisp-land, create structs. I was thinking of something like this:
+
+```
+(defstruct Cat {name [:char]})
+(var cat (Cat "hello"))
+```
+
+But I guess this could work?
+
+```
+(defstruct Cat {name [:char]})
+(var cat (Cat {name "hello"}))
+```
+
+Feels a bit annoying to specify the type, but what to do.
+
+
+
+
+
+
+
+
+
+
+
+
+
+-----------------------------------
+
+TODO: Must ensure nested things work well, like `(if x (var y (insert x y z)))` something. Maybe not that specifically since insert currently returns void.
+
+
+
+
+
+------------------------------------
+
+Okay, started figuring out how to unify structs. Now I need to figure out how to assign the right type variable to a map that has been identified with a certain struct. :> E.g. accreting multiple `(:has ...)` into a single type, rather than getting only a single `has`-type.
+
+One problem atm is that `(:has ...)` ends up as a type for things, but it should never be a type. :O It should rather end up as a ?t, where ?t is associated with certain constraints... I think maybe the current constraint resolution is too limited to deal with types that can't be determined yet. Hmmm.
