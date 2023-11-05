@@ -15,6 +15,7 @@ EnvKV *standard_environment()
     EnvKV *env = NULL;
 
     add_op(&env, ":int", "+");
+    add_op(&env, ":int", "/");
     add_op(&env, ":int", "<");
     add_op(&env, ":int", ">");
     add_op(&env, ":int", "<=");
@@ -80,6 +81,11 @@ EnvKV *standard_environment()
     {
         AST *type = (AST *)malloc(sizeof(AST));
         *type = list4(symbol("?T"), symbol("?T"), symbol("->"), value_type_void);
+        hmput(env, new_symbol("declare-var"), type);
+    }
+    {
+        AST *type = (AST *)malloc(sizeof(AST));
+        *type = list4(symbol("?T"), symbol("?T"), symbol("->"), value_type_void);
         hmput(env, new_symbol("defstruct"), type);
     }
 
@@ -124,8 +130,7 @@ char *scope_gensym(ScopeState *state, char *sym)
 {
     int len = snprintf(NULL, 0, "%d", state->gensym) + strlen(sym) + 10;
     char *str = malloc(len * sizeof(char));
-    snprintf(str, len, "%s__SCOPE__%d", sym, state->gensym);
-    state->gensym++;
+    snprintf(str, len, "__SCOPE%d__%s", state->gensym, sym);
     return str;
 }
 
@@ -149,6 +154,8 @@ void _ast_add_scope(ScopeState *state, AST *ast)
 
                 AST *args = elems[2].list.elements;
 
+                state->gensym++;
+
                 for (int i = 0; i < arrlen(args); i++)
                 {
                     shput(state->scope->kvs, args[i].symbol, scope_gensym(state, args[i].symbol));
@@ -166,6 +173,16 @@ void _ast_add_scope(ScopeState *state, AST *ast)
             state->scope = parent;
         }
 
+        break;
+    }
+    case AST_MAP:
+    {
+        AstKV *kvs = ast->map.kvs;
+
+        for (int i = 0; i < hmlen(kvs); i++)
+        {
+            _ast_add_scope(state, &kvs[i].value);
+        }
         break;
     }
     case AST_SYMBOL:
@@ -215,7 +232,7 @@ AST *vajer_ast(char *code)
     ast_resolve_types_all(env, code, root_nodes);
     log("\n\e[33m>> with types\n\e[0m");
     print_ast_list(root_nodes);
-    log("\n");
+    prn("\n");
 
     return root_nodes;
 }
@@ -232,24 +249,24 @@ AST *c_ast(AST *ast)
 
     if (do_print)
     {
-        log("\n\n\n\n\n\n>> \e[35mAST\e[0m\n");
+        log("\n>> \e[35mAST\e[0m\n");
 
         for (int i = 0; i < arrlen(ast); i++)
         {
             print_ast(&ast[i]);
         }
-        log(">> \e[35mEnd of AST\e[0m\n");
+        log("\n>> \e[35mEnd of AST\e[0m\n");
     }
 
     AST *transformed_nodes = c_transform_all(ast);
     if (do_print)
     {
-        log("\n");
+        prn("\n");
         for (int i = 0; i < arrlen(transformed_nodes); i++)
         {
             print_ast(&transformed_nodes[i]);
         }
-        log("\n");
+        prn("\n");
     }
 
     return transformed_nodes;
@@ -272,7 +289,9 @@ void compile_to_file(char *code, char *path)
           "#include <assert.h>\n"
           "#include <time.h>\n"
           "#include <stdlib.h>\n"
-          "#include <alloca.h>\n",
+          "#include <alloca.h>\n"
+          "#include <emscripten.h>\n"
+          "#include <emscripten/html5.h>\n",
           f);
     fputs(source, f);
     fclose(f);
@@ -289,35 +308,4 @@ void eval(char *code)
     sai_assert(tcc_add_file(s, "build/evaled.c") == 0);
 
     sai_assert(tcc_run(s, 0, NULL) == 0);
-
-    /*
-    char *source = c_compile_all(c_ast(vajer_ast(code)));
-
-    int do_print = 0;
-
-    if (do_print)
-    {
-        printf("source:\n%s\n", source);
-    }
-
-    TCCState *s = tcc_new();
-    tcc_set_options(s, "-bt10");
-    tcc_set_output_type(s, TCC_OUTPUT_MEMORY);
-
-    String src = (String){};
-
-    strstr(&src,
-           "#include <stdio.h>\n"
-           "#include <string.h>\n",
-           "#include <SDL2/SDL.h>\n",
-           "#include <assert.h>\n",
-           "#include <time.h>\n",
-           "#include <stdlib.h>\n",
-           "#include <alloca.h>\n",
-           source);
-
-    sai_assert(tcc_compile_string(s, src.str) != -1);
-
-    tcc_run(s, 0, NULL);
-    */
 }

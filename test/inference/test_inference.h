@@ -266,6 +266,11 @@ MU_TEST(test_infer_bigger_struct)
     eval(slurp("test/inference/bigger-struct.lisp"));
 }
 
+MU_TEST(test_infer_get)
+{
+    eval(slurp("test/inference/get.lisp"));
+}
+
 MU_TEST_SUITE(test_suite_inference)
 {
     MU_RUN_TEST(test_basic_unification);
@@ -291,4 +296,6 @@ MU_TEST_SUITE(test_suite_inference)
     MU_RUN_TEST(test_infer_struct);
 
     MU_RUN_TEST(test_infer_bigger_struct);
+
+    MU_RUN_TEST(test_infer_get);
 }

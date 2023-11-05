@@ -2,10 +2,11 @@
 (var dead 0)
 
 (declare SDL_RenderPresent [:SDL_Renderer* -> :void])
+(declare sizeof [?T -> :int])
 (declare SDL_SetRenderDrawColor [:SDL_Renderer* :int :int :int :int -> :void])
 (declare SDL_RenderClear [:SDL_Renderer* -> :void])
 (declare SDL_Quit [-> :void])
-(declare printf [[:char] -> :void])
+(declare printf [[:char] ?T -> :void])
 (declare SDL_CreateRenderer [:SDL_Window* :int :int -> :SDL_Renderer*])
 (declare SDL_CreateWindow [[:char] :int :int :int :int :int -> :SDL_Window*])
 (declare malloc [:int -> :void*])
@@ -17,6 +18,55 @@
 (declare SDL_Init [:int -> :int])
 (declare SDL_PollEvent [:SDL_Event* -> :int])
 (declare SDL_RenderDrawPoint [:SDL_Renderer* :int :int -> :void])
+
+(defstruct Map
+   {data   [:int]
+    width  :int
+    height :int})
+
+(defn move
+  [map-data from to]
+  (var thing (in map-data to))
+
+  (var lul 0)
+  (while (< lul 1)
+    (do
+      (if (== 4 thing)
+        (printf "boulder!%s\n" "")
+        (do
+          (put map-data from 1)
+          (put map-data to 0)))
+      (set lul 1)))
+
+  #(if (== 3 thing)
+  #  (do
+  #    (set gold (+ gold 1))
+  #    (printf "gold!\n")))
+      )
+
+(defn get_pos
+  [map el]
+  (var i 0)
+  (var res -1)
+  (var datta2 (get map data))
+  (while (< i (* (get map width) (get map height)))
+    (do
+      (printf "in datta2: %d\n" (in datta2 i))
+      (if (== (in datta2 i) el)
+        (do (printf "found it! %d\n" i)
+        (set res i)))
+      (set i (+ i 1))))
+  res)
+
+(defn move_up
+  [map]
+  (var pos (get_pos map 0))
+
+  (printf "hello! %d\n" pos)
+  (var datta (get map data))
+  # TODO: when this is uncommented, the compiler blows up :O
+  (if (>= (- pos (get map width)) 0) (move datta pos (- pos (get map width))))
+  )
 
 (defn draw_symbol
   [renderer
@@ -42,81 +92,12 @@
       (set i 0)
       (set j (+ j 1)))))
 
-(defstruct Map
-   {data   [:char]
-    width  :int
-    height :int})
-
-(defn move_boulder
-  [mapre from]
-  (var to (+ from (get mapre width)))
-  (var lul 0)
-  (while (< lul 1)
-    (do
-      (if (&& (== 0 (in (get mapre data) to))
-              (< to (* (get mapre width) (get mapre height))))
-        (do
-          (printf "YOU DIED\n")
-          (set dead 1)))
-      (set lul 1)))
-
-  (put (get mapre data) from 1)
-  (put (get mapre data) to 4))
-
-(defn move
-  [map from to]
-  (var thing (in map to))
-
-  (var lul 0)
-  (while (< lul 1)
-    (do
-      (if (== 4 thing)
-        (printf "boulder!\n")
-        (do
-          (put map from 1)
-          (put map to 0)))
-
-      (set lul 1)))
-
-  (if (== 3 thing)
-    (do
-      (set gold (+ gold 1))
-      (printf "gold!\n"))))
-
-(defn get_pos
-  [map mapw maph el]
-  (var i 0)
-  (var res -1)
-  (while (< i (* mapw maph))
-    (do
-      (if (== (in map i) el)
-        (set res i))
-      (set i (+ i 1))))
-  res)
-
-(defn move_up
-  [map mapw maph]
-  (var pos (get_pos map mapw maph 0))
-  (if (>= (- pos mapw) 0)
-    (move map pos (- pos mapw))))
-
-(defn move_down
-  [map mapw maph]
-  (var pos (get_pos map mapw maph 0))
-  (move map pos (+ pos mapw)))
-
-(defn move_left
-  [map mapw maph]
-  (var pos (get_pos map mapw maph 0))
-  (move map pos (- pos 1)))
-
-(defn move_right
-  [map mapw maph]
-  (var pos (get_pos map mapw maph 0))
-  (move map pos (+ pos 1)))
-
 (defn main []
+  (printf "\n\n >>> beginning of sdl program >>> %s\n" "")
+
   (srand (time 0))
+
+
 
   (var at
        " ..... 
@@ -176,11 +157,10 @@
   (put symbols_list 2 dot)
   (put symbols_list 3 goldsym)
   (put symbols_list 4 boulder)
+  
+  (SDL_Init SDL_INIT_VIDEO)
 
-
-
-
-  (def map_s (cast :Map {data (cast [:char] (malloc (* 8 8)))
+  (var map_s (cast :Map {data (cast [:int] (malloc (* (sizeof int) (* 8 8))))
                          width 8
                          height 8}))
 
@@ -189,63 +169,63 @@
 
   # (var map (cast [:int] (malloc (* (sizeof int) (+ 1 maplen)))))
   (memset (get map_s data) 0 maplen)
-  (put (get map data) maplen 0)
-
-  (printf "map\n")
+  (put (get map_s data) maplen 0)
 
   (var i 0)
   (while (< i maplen)
     (do
       (if (< 15 (% (rand) 20))
-        (put (get map data) i 3)
-        (put (get map data) i 2))
+        (put (get map_s data) i 3)
+        (put (get map_s data) i 2))
       (set i (+ i 1))))
 
-  (var i2 0)
-  (while (< i2 maplen)
-    (do
-      (if (< 15 (% (rand) 20))
-        (put (get map data) i2 4))
-      (set i2 (+ i2 1))))
 
-  (put (get map data) 5 0)
+  (put (get map_s data) 20 0)
 
-  (SDL_Init SDL_INIT_VIDEO)
+  (printf "map 0: %d\n" (in (get map_s data) 20))
+
+  (printf "watter before %s\n" "")
+  
   (var window
        (SDL_CreateWindow "Little Line"
-                         100 100 (* (get map_s width) tilesize) (* (get map_s height) tilesize)
+                         100
+                         100
+                         (* (get map_s width) tilesize)
+                         (* (get map_s height) tilesize)
                          SDL_WINDOW_OPENGL))
+  
+  (printf "watter\n %s" "")
 
   (var renderer (SDL_CreateRenderer window -1 SDL_RENDERER_ACCELERATED))
-
-  (printf "window:\n")
-  (printf "renderer:\n")
 
   (var quit 1000000000)
   (declare e :SDL_Event)
   (var e NULL)
   (while (> quit 0)
     (do
-      (set quit (- quit 1))
-      (var res (SDL_PollEvent &e))
-      (if (!= res 0)
-        (do
-          (if (== e.type SDL_QUIT)
-            (set quit 0))
-          (if (&& (== 0 dead)
+        (set quit (- quit 1))
+        (var res (SDL_PollEvent &e))
+        (if (!= res 0)
+          (do
+            (if (== e.type SDL_QUIT)
+              (set quit 0))
+            (if (&& (== 0 dead)
                   (== e.type SDL_KEYDOWN))
-            (do
-              #(if (== e.key.keysym.sym SDLK_w)
-              #  (move_up map mapw maph))
-              #(if (== e.key.keysym.sym SDLK_s)
-              #  (move_down map mapw maph))
-              #(if (== e.key.keysym.sym SDLK_a)
-              #  (move_left map mapw maph))
-              #(if (== e.key.keysym.sym SDLK_d)
-              #  (move_right map mapw maph))
+              (do
+                (if (== e.key.keysym.sym SDLK_w)
+                  (move_up map_s)
+                  )
+                #(if (== e.key.keysym.sym SDLK_s)
+                #  (move_down map mapw maph))
+                #(if (== e.key.keysym.sym SDLK_a)
+                #  (move_left map mapw maph))
+                #(if (== e.key.keysym.sym SDLK_d)
+                #  (move_right map mapw maph))
+                0
+                  ))))
               
-                ))))
 
+    
       (SDL_SetRenderDrawColor renderer 0 0 0 255)
       (SDL_RenderClear renderer)
 
@@ -253,20 +233,25 @@
 
       (var x 0)
       (var y 0)
-      (while (< y (get map height))
+      (while (< y (get map_s height))
         (do
-          (while (< x (get map width))
+          (while (< x (get map_s width))
             (do
-              (var pos  (+ x (* y (get map width))))
-              (if (&& (== (in (get map data) pos) 4)
-                      (|| (== (in (get map data) (+ pos mapw)) 0)
-                          (== (in (get map data) (+ pos mapw)) 1)))
-                (move_boulder map pos))
-              (draw_symbol renderer symbols_list (in (get map data) pos) (* x tilesize) (* y tilesize))
+              (var pos (+ x (* y (get map_s width))))
+              (if (&& (== (in (get map_s data) pos) 4)
+                      (|| (== (in (get map_s data) (+ pos (get map_s width))) 0)
+                          (== (in (get map_s data) (+ pos (get map_s width))) 1)))
+                #(move_boulder map_s pos)
+                (printf "yeah %s" "")
+                )
+              (draw_symbol renderer symbols_list (in (get map_s data) pos) (* x tilesize) (* y tilesize))
               (set x (+ x 1))))
           (set x 0)
           (set y (+ y 1))))
-      (SDL_RenderPresent renderer)))
+      (SDL_RenderPresent renderer)
+              
+              
+              ))
 
   (SDL_Quit)
 

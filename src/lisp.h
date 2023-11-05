@@ -15,12 +15,22 @@ size_t log_size;
 int tcc_backtrace(const char *fmt, ...);
 #define log123(...) \
     fprintf(log_stream, __VA_ARGS__)
-#define log(...) \
+#define prn(...) \
     printf(__VA_ARGS__)
+
+#define log(...)                                \
+    printf("LOG: %s:%d: ", __FILE__, __LINE__); \
+    printf(__VA_ARGS__)
+
 #else
 
-#define log(...) \
+#define log(...)                                \
+    printf("LOG: %s:%d: ", __FILE__, __LINE__); \
     printf(__VA_ARGS__)
+
+#define prn(...) \
+    printf(__VA_ARGS__)
+
 int tcc_backtrace(const char *fmt, ...)
 {
     va_list args;
@@ -107,7 +117,7 @@ typedef struct TokenizeState
 Token whitespace(TokenizeState *state)
 {
     int start = state->pos;
-    while (state->pos < state->count && state->code[state->pos] == ' ')
+    while (state->pos < state->count && (state->code[state->pos] == ' ' || state->code[state->pos] == ','))
         state->pos++;
     return (Token){TOKEN_WHITESPACE, start, state->pos};
 }
@@ -120,7 +130,7 @@ Token newline(TokenizeState *state)
     return (Token){TOKEN_NEWLINE, start, state->pos};
 }
 
-const char *symbol_chars = "<>=*-?+:_!&.@'\\%|";
+const char *symbol_chars = "<>=*-?+:_!&.@'\\%|/";
 
 int is_symbol(int is_first, char c)
 {
@@ -236,7 +246,7 @@ Token *tokenize(const char *str, int count)
             arrpush(tokens, ((Token){.type = TOKEN_CLOSE_BRACES, .start = state.pos, .stop = state.pos + 1}));
             state.pos++;
         }
-        else if (c == ' ')
+        else if (c == ' ' || c == ',')
         {
             arrpush(tokens, whitespace(&state));
         }
@@ -408,15 +418,15 @@ void print_indent(int indent)
         dark = !dark;
         if (dark)
         {
-            log("%s", ansi_dark_background);
+            prn("%s", ansi_dark_background);
         }
         else
         {
-            log("%s", ansi_bright_background);
+            prn("%s", ansi_bright_background);
         }
 
-        log("%s", ansi_indent_color[i]);
-        log(" ");
+        prn("%s", ansi_indent_color[i]);
+        prn(" ");
     }
 }
 
@@ -425,24 +435,28 @@ void _print_ast(PrintASTState *state, AST *el)
     switch (el->ast_type)
     {
     case AST_SYMBOL:
-        log("%s", el->symbol);
+        prn("%s", el->symbol);
         break;
     case AST_STRING:
-        log("\"%s\"", el->string);
+        prn("\"%s\"", el->string);
         break;
     case AST_NUMBER:
-        log("%d", el->number);
+        prn("%d", el->number);
         break;
     case AST_BOOLEAN:
-        log("%s", el->boolean == 0 ? "false" : "true");
+        prn("%s", el->boolean == 0 ? "false" : "true");
         break;
     case AST_LIST:
-        log("%s", ansi_indent_color[state->indentation]);
+        prn("%s", ansi_indent_color[state->indentation]);
         if (el->list.type == LIST_PARENS)
-            log("(");
+        {
+            prn("(");
+        }
         else if (el->list.type == LIST_BRACKETS)
-            log("[");
-        log("%s", ansi_clear);
+        {
+            prn("[");
+        }
+        prn("%s", ansi_clear);
 
         if (arrlen(el->list.elements) > 4)
         {
@@ -456,24 +470,24 @@ void _print_ast(PrintASTState *state, AST *el)
 
                 if (state->dark)
                 {
-                    log("%s", ansi_dark_background);
+                    prn("%s", ansi_dark_background);
                 }
                 else
                 {
-                    log("%s", ansi_bright_background);
+                    prn("%s", ansi_bright_background);
                 }
 
                 if (i > 0)
                     print_indent(state->indentation);
 
-                log("%s", ansi_clear);
+                prn("%s", ansi_clear);
 
                 state->line_len = 0;
                 _print_ast(state, &el->list.elements[i]);
 
                 if (i < arrlen(el->list.elements) - 0)
                 {
-                    log("\n");
+                    prn("\n");
                 }
             }
 
@@ -489,38 +503,42 @@ void _print_ast(PrintASTState *state, AST *el)
 
                 if (i < arrlen(el->list.elements) - 1)
                 {
-                    log(" ");
+                    prn(" ");
                 }
             }
         }
 
         if (state->dark)
         {
-            log("%s", ansi_dark_background);
+            prn("%s", ansi_dark_background);
         }
         else
         {
-            log("%s", ansi_bright_background);
+            prn("%s", ansi_bright_background);
         }
 
         // print_indent(state->indentation);
 
-        log("%s", ansi_clear);
+        prn("%s", ansi_clear);
 
-        log("%s", ansi_indent_color[state->indentation]);
+        prn("%s", ansi_indent_color[state->indentation]);
         if (el->list.type == LIST_PARENS)
-            log(")");
+        {
+            prn(")");
+        }
         else if (el->list.type == LIST_BRACKETS)
-            log("]");
-        log("%s", ansi_clear);
+        {
+            prn("]");
+        }
+        prn("%s", ansi_clear);
 
         state->line_len = 0;
 
         break;
     case AST_MAP:
-        log("%s", ansi_indent_color[state->indentation]);
-        log("{");
-        log("%s", ansi_clear);
+        prn("%s", ansi_indent_color[state->indentation]);
+        prn("{");
+        prn("%s", ansi_clear);
 
         if (arrlen(el->map.kvs) > 4)
         {
@@ -534,26 +552,26 @@ void _print_ast(PrintASTState *state, AST *el)
 
                 if (state->dark)
                 {
-                    log("%s", ansi_dark_background);
+                    prn("%s", ansi_dark_background);
                 }
                 else
                 {
-                    log("%s", ansi_bright_background);
+                    prn("%s", ansi_bright_background);
                 }
 
                 if (i > 0)
                     print_indent(state->indentation);
 
-                log("%s", ansi_clear);
+                prn("%s", ansi_clear);
 
                 state->line_len = 0;
                 _print_ast(state, &el->map.kvs[i].key);
-                log(" ");
+                prn(" ");
                 _print_ast(state, &el->map.kvs[i].value);
 
                 if (i < hmlen(el->map.kvs) - 0)
                 {
-                    log("\n");
+                    prn("\n");
                 }
             }
 
@@ -566,33 +584,33 @@ void _print_ast(PrintASTState *state, AST *el)
             for (int i = 0; i < hmlen(el->map.kvs); i++)
             {
                 _print_ast(state, &el->map.kvs[i].key);
-                log(" ");
+                prn(" ");
                 _print_ast(state, &el->map.kvs[i].value);
 
                 if (i < hmlen(el->map.kvs) - 1)
                 {
-                    log(",");
-                    log(" ");
+                    prn(",");
+                    prn(" ");
                 }
             }
         }
 
         if (state->dark)
         {
-            log("%s", ansi_dark_background);
+            prn("%s", ansi_dark_background);
         }
         else
         {
-            log("%s", ansi_bright_background);
+            prn("%s", ansi_bright_background);
         }
 
         // print_indent(state->indentation);
 
-        log("%s", ansi_clear);
+        prn("%s", ansi_clear);
 
-        log("%s", ansi_indent_color[state->indentation]);
-        log("}");
-        log("%s", ansi_clear);
+        prn("%s", ansi_indent_color[state->indentation]);
+        prn("}");
+        prn("%s", ansi_clear);
 
         state->line_len = 0;
 
@@ -600,15 +618,15 @@ void _print_ast(PrintASTState *state, AST *el)
     case AST_EMPTY:
         break;
     default:
-        log("unhandled print: %d\n", el->ast_type);
+        prn("unhandled print: %d\n", el->ast_type);
         sai_assert(0);
     }
 
     if (el->value_type != NULL)
     {
-        log("%s", ansi_blue);
+        prn("%s", ansi_blue);
         _print_ast(state, el->value_type);
-        log("%s", ansi_clear);
+        prn("%s", ansi_clear);
     }
 }
 
@@ -621,8 +639,12 @@ void prin_ast(AST *el)
 void print_ast(AST *el)
 {
     prin_ast(el);
-    log("\n");
+    prn("\n");
 }
+
+#define log_ast(el)                        \
+    printf("%s:%d: ", __FILE__, __LINE__); \
+    print_ast(el);
 
 void print_ast_list(AST *els)
 {
@@ -656,8 +678,38 @@ AST *get_in_map(AstKV *map, AST *k)
     return NULL;
 }
 
+int is_submap_of(AstKV *sub, AstKV *map)
+{
+    if (hmlen(sub) > hmlen(map))
+        return 0;
+
+    for (int i = 0; i < hmlen(sub); i++)
+    {
+        AST *v = get_in_map(map, &sub[i].key);
+        if (v == NULL || !ast_eq(&sub[i].value, v))
+            return 0;
+    }
+    return 1;
+}
+
+int contains_all_keys(AstKV *map, AstKV *keys)
+{
+    if (hmlen(keys) > hmlen(map))
+        return 0;
+
+    for (int i = 0; i < hmlen(keys); i++)
+    {
+        if (get_in_map(map, &keys[i].key) == NULL)
+            return 0;
+    }
+
+    return 1;
+}
+
 int ast_eq(AST *n1, AST *n2)
 {
+    sai_assert(n1 != NULL);
+    sai_assert(n2 != NULL);
     if (n1->ast_type != n2->ast_type)
         return 0;
 
@@ -678,7 +730,8 @@ int ast_eq(AST *n1, AST *n2)
             return 0;
         for (int i = 0; i < hmlen(n1->map.kvs); i++)
         {
-            if (!ast_eq(&n1->map.kvs[i].value, get_in_map(n2->map.kvs, &n1->map.kvs[i].key)))
+            AST *v = get_in_map(n2->map.kvs, &n1->map.kvs[i].key);
+            if (v == NULL || !ast_eq(&n1->map.kvs[i].value, v))
                 return 0;
         }
         return 1;
@@ -1479,6 +1532,10 @@ SymAST transform_list(CTransformState *state, AST *node)
         {
             return (SymAST){.sym = NULL, .ast = *node};
         }
+        else if (strcmp(head.symbol, "declare-var") == 0)
+        {
+            return (SymAST){.sym = NULL, .ast = *node};
+        }
         else if (strcmp(head.symbol, "defstruct") == 0)
         {
             return (SymAST){.sym = NULL, .ast = *node};
@@ -1573,8 +1630,11 @@ void c_compile_type(CCompilationState *state, AST type)
     switch (type.ast_type)
     {
     case AST_SYMBOL:
-        print_ast(&type);
-        sai_assert(type.symbol[0] != '?');
+        if (type.symbol[0] == '?')
+        {
+            print_ast(&type);
+            sai_assert(0);
+        }
         strstr(&state->source, type.symbol + 1);
         break;
     case AST_LIST:
@@ -1636,7 +1696,6 @@ void c_compile_do(CCompilationState *state, AST node)
 
 void c_compile_cast(CCompilationState *state, AST node)
 {
-    print_ast(&node);
     string(&state->source, "(");
     c_compile_type(state, node.list.elements[1]);
     string(&state->source, ")");
@@ -1802,12 +1861,8 @@ void c_compile_var(CCompilationState *state, AST node)
 
     strstr(&state->source, " ", sym.symbol);
 
-    log("type ");
-    print_ast(&type);
-
     if (arrlen(node.list.elements) > 2)
     {
-        print_ast(&node.list.elements[2]);
         string(&state->source, " = ");
 
         if (type.ast_type == AST_SYMBOL)
@@ -1827,6 +1882,19 @@ void c_compile_var(CCompilationState *state, AST node)
             c_compile(state, node.list.elements[2]);
         }
     }
+}
+
+void c_compile_declare_var(CCompilationState *state, AST node)
+{
+    sai_assert(arrlen(node.list.elements) == 3);
+
+    AST sym = node.list.elements[1];
+    AST type = *sym.value_type;
+    sai_assert(sym.ast_type == AST_SYMBOL);
+
+    c_compile_type(state, type);
+
+    strstr(&state->source, " ", sym.symbol);
 }
 
 void c_compile_set(CCompilationState *state, AST node)
@@ -1849,8 +1917,9 @@ void c_compile_in(CCompilationState *state, AST node)
 void c_compile_put(CCompilationState *state, AST node)
 {
     AST sym = node.list.elements[1];
-    sai_assert(sym.ast_type == AST_SYMBOL);
-    strstr(&state->source, sym.symbol, "[");
+    // sai_assert(sym.ast_type == AST_SYMBOL);
+    c_compile(state, sym);
+    strstr(&state->source, "[");
     c_compile(state, node.list.elements[2]);
     strstr(&state->source, "] = ");
     c_compile(state, node.list.elements[3]);
@@ -1898,6 +1967,10 @@ void c_compile_list(CCompilationState *state, AST node)
         {
             // nothing
         }
+        else if (strcmp(head.symbol, "declare-var") == 0)
+        {
+            return c_compile_declare_var(state, node);
+        }
         else if (strcmp(head.symbol, "defstruct") == 0)
         {
             return c_compile_defstruct(state, node);
@@ -1930,7 +2003,7 @@ void c_compile_list(CCompilationState *state, AST node)
         {
             return c_compile_infix(state, node.list.elements[1], "==", (AST){.ast_type = AST_NUMBER, .number = 0, .value_type = &value_type_int});
         }
-        else if (strcmp(head.symbol, "<=") == 0 || strcmp(head.symbol, ">=") == 0 || strcmp(head.symbol, ">") == 0 || strcmp(head.symbol, "<") == 0 || strcmp(head.symbol, "!=") == 0 || strcmp(head.symbol, "==") == 0 || strcmp(head.symbol, "*") == 0 || strcmp(head.symbol, "+") == 0 || strcmp(head.symbol, "-") == 0 || strcmp(head.symbol, "%") == 0 || strcmp(head.symbol, "&&") == 0 || strcmp(head.symbol, "||") == 0)
+        else if (strcmp(head.symbol, "<=") == 0 || strcmp(head.symbol, ">=") == 0 || strcmp(head.symbol, ">") == 0 || strcmp(head.symbol, "<") == 0 || strcmp(head.symbol, "!=") == 0 || strcmp(head.symbol, "==") == 0 || strcmp(head.symbol, "*") == 0 || strcmp(head.symbol, "/") == 0 || strcmp(head.symbol, "+") == 0 || strcmp(head.symbol, "-") == 0 || strcmp(head.symbol, "%") == 0 || strcmp(head.symbol, "&&") == 0 || strcmp(head.symbol, "||") == 0)
         {
             sai_assert(arrlen(node.list.elements) == 3);
             return c_compile_infix(state, node.list.elements[1], head.symbol, node.list.elements[2]);
@@ -1960,6 +2033,10 @@ void c_compile_list(CCompilationState *state, AST node)
 void c_compile_map(CCompilationState *state, AST node)
 {
     AstKV *map = node.map.kvs;
+
+    string(&state->source, "(");
+    c_compile_type(state, *node.value_type);
+    string(&state->source, ")");
 
     strstr(&state->source, "{\n");
     state->indent += 2;

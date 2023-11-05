@@ -35,8 +35,7 @@ int main(int argc, char **argv)
     init_sig_handler(argv[0]);
 #endif
 #endif
-    test_infer_bigger_struct();
-
+    eval(slurp("lisp/spelsylt.lisp"));
     int do_test = 0;
 
     if (do_test)
