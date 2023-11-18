@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef EMSCRIPTEN
 
 /*
@@ -88,13 +90,14 @@ void printStackTrace(int called_from_sigint)
 
     static const int traceSize = 16;
     void *trace[traceSize];
-    char **messages = (char **)NULL;
+    // not sure what this was ^^;
+    // char **messages = (char **)NULL;
     int i, trace_size = 0;
     int len = 0;
 
     trace_size = backtrace(trace, traceSize);
 
-    messages = backtrace_symbols(trace, trace_size);
+    // messages = backtrace_symbols(trace, trace_size);
 
     pid_t pid = getpid();
     /*

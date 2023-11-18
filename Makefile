@@ -1,8 +1,11 @@
 CC=clang
 # -Wno-deprecated-declarations is there for `getsegbyname` on macos which is deprecated but works
-CFLAGS=-g -D_THREAD_SAFE -Werror -Wno-deprecated-declarations
+CFLAGS=-g -D_THREAD_SAFE -Werror -Wno-deprecated-declarations -Wall
 INCLUDES=-Ilib -I/usr/local/include/SDL2 -I/usrc/local/include/SDL2_ttf
-LIBS=-Llib/tinycc -ltcc -L/usr/local/lib -lSDL2 
+LIBS=-Llib/tinycc -ltcc -L/usr/local/lib -lSDL2
+
+experiment: FORCE
+	./lib/tinycc/tcc $(INCLUDES) -I. $(LIBS) $(CFLAGS) -run experiments/tcc_compile_in_steps.c
 
 test: FORCE
 # experiment
@@ -10,6 +13,8 @@ test: FORCE
 # standard one
 	./lib/tinycc/tcc -bt10 -DCOMPILED_WITH_TCC $(INCLUDES) -I. $(LIBS) $(CFLAGS) -run test/test.c -Wall
 #	./lib/tinycc/tcc $(INCLUDES) -I. $(LIBS) $(CFLAGS) test/test.c -o build/test
+
+run: test
 
 clang-test: clang-test-build
 	./build/test

@@ -177,14 +177,13 @@ MU_TEST(test_basic_inference)
         AST *root_nodes = parse_all(code, tokens);
 
         EnvKV *env = standard_environment();
-
-        ast_resolve_types_all(env, code, root_nodes);
+        ast_resolve_types_all(&env, code, root_nodes);
         // print_env(env);
 
         AST *x = &root_nodes[0].list.elements[2].list.elements[0];
         AST new_type;
         // print_ast(x);
-        new_type = *resolve_type(env, x->value_type);
+        new_type = *resolve_type(&env, x->value_type);
         x->value_type = &new_type;
         AST intsym = symbol(":int");
 
@@ -201,7 +200,8 @@ MU_TEST(test_basic_inference)
             hmput(env, new_symbol("+"), type);
         }
 
-        AST *ast = vajer_ast(slurp("test/inference/basic.lisp"));
+        EnvKV *env2 = standard_environment();
+        AST *ast = vajer_ast(&env2, slurp("test/inference/basic.lisp"));
 
         AST *x = &ast[0].list.elements[2].list.elements[0];
         AST *call = &ast[1];
@@ -214,61 +214,66 @@ MU_TEST(test_basic_inference)
 MU_TEST(test_infer_then_compile)
 {
     {
-        AST *ast = vajer_ast(slurp("test/inference/adder.lisp"));
+        EnvKV *env = standard_environment();
+        AST *ast = vajer_ast(&env, slurp("test/inference/adder.lisp"));
 
         AST *x = &ast[0].list.elements[2].list.elements[0];
         AST intsym = symbol(":int");
         mu_assert(ast_eq(x->value_type, &intsym));
 
-        AST *transformed_nodes = c_transform_all(ast);
-
-        // printf("source:\n%s", c_compile_all(transformed_nodes));
+        c_transform_all(ast);
     }
 }
 
 MU_TEST(test_infer_var)
 {
     {
-        AST *ast = vajer_ast(slurp("test/inference/var.lisp"));
-        AST *transformed_nodes = c_transform_all(ast);
-
-        // printf("source:\n%s", c_compile_all(transformed_nodes));
+        EnvKV *env = standard_environment();
+        AST *ast = vajer_ast(&env, slurp("test/inference/var.lisp"));
+        c_transform_all(ast);
     }
 }
 
 MU_TEST(test_infer_malloc)
 {
-    eval(slurp("test/inference/malloc.lisp"));
+    EnvKV *env = standard_environment();
+    eval(&env, slurp("test/inference/malloc.lisp"));
 }
 
 MU_TEST(test_infer_defn_and_call)
 {
-    eval(slurp("test/inference/defn-and-call.lisp"));
+    EnvKV *env = standard_environment();
+    eval(&env, slurp("test/inference/defn-and-call.lisp"));
 }
 
 MU_TEST(test_infer_defn_void)
 {
-    eval(slurp("test/inference/defn-void.lisp"));
+    EnvKV *env = standard_environment();
+    eval(&env, slurp("test/inference/defn-void.lisp"));
 }
 
 MU_TEST(test_infer_same_symbol)
 {
-    eval(slurp("test/inference/same-symbol.lisp"));
+    EnvKV *env = standard_environment();
+    eval(&env, slurp("test/inference/same-symbol.lisp"));
 }
 
 MU_TEST(test_infer_struct)
 {
-    eval(slurp("test/inference/struct.lisp"));
+    EnvKV *env = standard_environment();
+    eval(&env, slurp("test/inference/struct.lisp"));
 }
 
 MU_TEST(test_infer_bigger_struct)
 {
-    eval(slurp("test/inference/bigger-struct.lisp"));
+    EnvKV *env = standard_environment();
+    eval(&env, slurp("test/inference/bigger-struct.lisp"));
 }
 
 MU_TEST(test_infer_get)
 {
-    eval(slurp("test/inference/get.lisp"));
+    EnvKV *env = standard_environment();
+    eval(&env, slurp("test/inference/get.lisp"));
 }
 
 MU_TEST_SUITE(test_suite_inference)

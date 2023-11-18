@@ -19,7 +19,7 @@
 (declare SDL_PollEvent [:SDL_Event* -> :int])
 (declare SDL_RenderDrawPoint [:SDL_Renderer* :int :int -> :void])
 
-(defstruct Map
+(defstruct MapS
    {data   [:int]
     width  :int
     height :int})
@@ -160,7 +160,7 @@
   
   (SDL_Init SDL_INIT_VIDEO)
 
-  (var map_s (cast :Map {data (cast [:int] (malloc (* (sizeof int) (* 8 8))))
+  (var map_s (cast :MapS {data (cast [:int] (malloc (* (sizeof int) (* 8 8))))
                          width 8
                          height 8}))
 

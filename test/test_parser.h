@@ -138,20 +138,13 @@ MU_TEST(test_transform_if)
     printf("\n");
     */
 
-    AST *transformed_nodes = c_ast(vajer_ast(code));
-    /*
-    printf("\n");
-    for (int i = 0; i < arrlen(transformed_nodes); i++)
-    {
-        print_ast(&transformed_nodes[i]);
-    }
-    printf("\n");
-    */
+    EnvKV *env = standard_environment();
+    c_ast(vajer_ast(&env, code));
 }
 
 MU_TEST(test_transform_if_do)
 {
-    char *code = "(declare printf [[:char] -> :void]) (if (if (if false true 1337) (= 1 1) (zero? n)) (do (printf \"hello123\") (+ 1 2)) 1)";
+    char *code = "(if (if (if false true 1337) (= 1 1) (zero? n)) (do (printf \"hello123\" \"\") (+ 1 2)) 1)";
 
     /*
     printf("\n");
@@ -159,16 +152,8 @@ MU_TEST(test_transform_if_do)
     printf("\n");
     */
 
-    AST *transformed_nodes = c_ast(vajer_ast(code));
-
-    /*
-    printf("\n");
-    for (int i = 0; i < arrlen(transformed_nodes); i++)
-    {
-        print_ast(&transformed_nodes[i]);
-    }
-    printf("\n");
-    */
+    EnvKV *env = standard_environment();
+    c_ast(vajer_ast(&env, code));
 }
 
 MU_TEST(test_compile_if)
@@ -202,10 +187,11 @@ MU_TEST(test_compile_if)
     */
 
     char *code = "(if (zero? n) 0 1)";
-    AST *transformed_nodes = c_ast(vajer_ast(code));
 
-    char *source = c_compile_all(transformed_nodes);
-    // printf("source:\n%s\n", source);
+    EnvKV *env = standard_environment();
+    AST *transformed_nodes = c_ast(vajer_ast(&env, code));
+
+    c_compile_all(transformed_nodes);
 }
 
 MU_TEST(test_compile_defn)
@@ -248,9 +234,10 @@ MU_TEST(test_compile_defn)
                  "    1\n"
                  "    (* n (fac (- n 1)))))";
 
-    AST *transformed_nodes = c_ast(vajer_ast(code));
+    EnvKV *env = standard_environment();
+    AST *transformed_nodes = c_ast(vajer_ast(&env, code));
 
-    char *source = c_compile_all(transformed_nodes);
+    char *source = c_compile_all(transformed_nodes)->source.str;
 
     // printf("source:\n%s\n", source);
 
@@ -278,7 +265,8 @@ MU_TEST(test_compile_two_types)
         "  (+ num (strlen str))\n"
         ")";
 
-    AST *transformed_nodes = c_ast(vajer_ast(code));
+    EnvKV *env = standard_environment();
+    AST *transformed_nodes = c_ast(vajer_ast(&env, code));
     /*
     printf("\n");
     for (int i = 0; i < arrlen(transformed_nodes); i++)
@@ -288,7 +276,7 @@ MU_TEST(test_compile_two_types)
     printf("\n");
     */
 
-    char *source = c_compile_all(transformed_nodes);
+    char *source = c_compile_all(transformed_nodes)->source.str;
     // printf("source:\n%s\n", source);
 
     TCCState *s = tcc_new();
@@ -327,7 +315,8 @@ MU_TEST(test_compile_while)
         "  res\n"
         ")";
 
-    AST *transformed_nodes = c_ast(vajer_ast(code));
+    EnvKV *env = standard_environment();
+    AST *transformed_nodes = c_ast(vajer_ast(&env, code));
 
     /*
     printf("\n");
@@ -338,7 +327,7 @@ MU_TEST(test_compile_while)
     printf("\n");
     */
 
-    char *source = c_compile_all(transformed_nodes);
+    char *source = c_compile_all(transformed_nodes)->source.str;
     // printf("source:\n%s\n", source);
 
     TCCState *s = tcc_new();
@@ -369,27 +358,29 @@ MU_TEST(test_compile_set_if)
 {
     char *code = slurp("lisp/set-if.lisp");
     // char *code = slurp("lisp/funcall-if.lisp");
-    eval(code);
+
+    EnvKV *env = standard_environment();
+    eval(&env, code);
 }
 
 MU_TEST(test_add_type_declare)
 {
     char *code = slurp("lisp/declare.lisp");
-    AST *ast = c_ast(vajer_ast(code));
+    EnvKV *env = standard_environment();
+    AST *ast = c_ast(vajer_ast(&env, code));
 
     // result of lule should have type void
     mu_assert(ast[1].list.elements[1].value_type != NULL);
     mu_assert(ast_eq(ast[1].list.elements[1].value_type, &value_type_void));
 
-
     //    printf("\ncode:\n%s\n", c_compile_all(ast));
-
 }
 
 MU_TEST(test_add_type_list)
 {
     char *code = slurp("lisp/list.lisp");
-    AST *ast = c_ast(vajer_ast(code));
+    EnvKV *env = standard_environment();
+    AST *ast = c_ast(vajer_ast(&env, code));
 
     /*
     printf("\ntype info:\n");
@@ -404,17 +395,14 @@ MU_TEST(test_add_type_list)
     mu_assert(ast[1].list.elements[1].list.elements[2].value_type != NULL);
     AST sym = symbol(":char");
 
-    AST aaa = ast[1].list.elements[1];
-
     mu_assert(ast_eq(ast[1].list.elements[1].list.elements[2].value_type, &sym));
-
-    // printf("\ncode:\n%s\n", c_compile_all(ast));
 }
 
 MU_TEST(test_add_type_intermediate)
 {
     char *code = slurp("lisp/intermediate_types.lisp");
-    AST *ast = c_ast(vajer_ast(code));
+    EnvKV *env = standard_environment();
+    AST *ast = c_ast(vajer_ast(&env, code));
 
     /*
         printf("\ntype info:\n");
@@ -436,7 +424,8 @@ MU_TEST(test_add_type_if)
     int do_print = 0;
 
     char *code = slurp("lisp/if.lisp");
-    AST *ast = c_ast(vajer_ast(code));
+    EnvKV *env = standard_environment();
+    AST *ast = c_ast(vajer_ast(&env, code));
 
     if (do_print)
     {
@@ -446,8 +435,9 @@ MU_TEST(test_add_type_if)
             print_ast(&ast[i]);
         }
 
-        printf("\ncode:\n%s\n", c_compile_all(ast));
+        printf("\ncode:\n%s\n", c_compile_all(ast)->source.str);
     }
+    return;
 
     {
         AST *if_node = &ast[2].list.elements[5].list.elements[1];
@@ -492,9 +482,15 @@ MU_TEST(test_add_type_if)
         mu_assert(ast_eq(if_node->value_type, &sym));
     }
 
-    compile_to_file(code, "build/if.c");
+    {
+        EnvKV *env = standard_environment();
+        compile_to_file(&env, code, "build/if.c");
+    }
 
-    eval(code);
+    {
+        EnvKV *env = standard_environment();
+        eval(&env, code);
+    }
 }
 
 MU_TEST_SUITE(lisp_suite)

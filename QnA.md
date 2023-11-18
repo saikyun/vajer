@@ -1302,3 +1302,47 @@ TODO: Must ensure nested things work well, like `(if x (var y (insert x y z)))` 
 Okay, started figuring out how to unify structs. Now I need to figure out how to assign the right type variable to a map that has been identified with a certain struct. :> E.g. accreting multiple `(:has ...)` into a single type, rather than getting only a single `has`-type.
 
 One problem atm is that `(:has ...)` ends up as a type for things, but it should never be a type. :O It should rather end up as a ?t, where ?t is associated with certain constraints... I think maybe the current constraint resolution is too limited to deal with types that can't be determined yet. Hmmm.
+
+
+
+-------------------------
+
+Unifying structs works!
+
+--------------------------
+
+* [x] Implement `list`, or something like it...?
+  * [x] It should probably be a macro :O
+
+------------------------
+
+I managed to make the macro. It's in `test/macro/list.lisp`.
+
+I realized though, that for macros to be able to call functions, the functions need to be compiled, at least before the macro is called.
+
+After playing around a bit with libtcc, I figured out I can not compile and extract functions using the same tcc-state multiple times. But I am able to compile and extract functions separately, then when the time for calling a macro comes, I can use `tcc_add_symbol` to give a reference to a function. I think this might turn out all right. I did a little bit of this in `experiments/tcc_compile_in_steps.c`.
+
+Next step would be figuring out a nice way to build up this hashmap of C-functions, and to add the declarations to the source of the macro when it is compiled to C.
+
+I think in the beginning I could just add all the functions every time a macro runs.
+
+---* [ ] char *functions_hashmap_to_c(CFunEntry *entries) -- this should take a hashmap with symbol / function+type pairs, and return a string like so:---
+```
+functions_hashmap_to_c([{test: {f: <void ptr>, type: [:int -> :void]}}])
+#=>
+"void test();\n"
+```
+---* [ ] add_tcc_symbols(TCCState *s, CFunEntry *entries) -- does `tcc_add_symbol` for all entries---
+* [x] instead I just made a `eval_with_centries`
+
+This might work pretty all right. I also need to get the `CFunEntry *entries` somehow. When compiling a function, it should somehow store the symbol and the type. I guess one way to do that could be to hijack the `c_compile_defun` thing, or I could just loop throgh the (transformed) AST and extract all `defn` calls. I think I only care about top level atm anyway.
+
+---* [ ] AST *find_all_defn(AST *) -- this might work :)---
+---* [ ] CFunEntry *defn_to_CFunEntry(AST *defns) -- hm, here I wouldn't have the functions. I guess I need to extract them after compilation is done.---
+* [x] `eval` should return `CFunEntry *` :O
+
+* [x] make a partial eval thing where it uses functions from earlier compilations
+
+----------
+
+Okay, so now macros seem to work, when looking in `test/macro/list.lisp`. Pretty cool that a macro can call a function. :)

@@ -102,55 +102,40 @@
 
 (defn main_loop
   []
-
   (declare e :SDL_Event)
   (var e NULL)
   (var res (SDL_PollEvent &e))
   (if (!= 0 res)
-    (do
-      (if (== e.type SDL_QUIT)
-        (set quit 1))
+    (case  e.type
+      SDL_QUIT
+      (set quit 1)
 
-      (if (== e.type SDL_KEYDOWN)
-        (do
-          (if (== e.key.keysym.scancode SDL_SCANCODE_W)
-            (do (set cursor_y (- cursor_y 1)) 0))
-          (if (== e.key.keysym.scancode SDL_SCANCODE_S)
-            (do (set cursor_y (+ cursor_y 1)) 0))
-          (if (== e.key.keysym.scancode SDL_SCANCODE_A)
-            (do (set cursor_x (- cursor_x 1)) 0))
-          (if (== e.key.keysym.scancode SDL_SCANCODE_D)
-            (do (set cursor_x (+ cursor_x 1)) 0))
-          (if (== e.key.keysym.scancode SDL_SCANCODE_SPACE)
-            (do (spawn data width cursor_x cursor_y) 0))
-          0))))
+      SDL_KEYDOWN
+      (case e.key.keysym.scancode
+        SDL_SCANCODE_W
+        (set cursor_y (- cursor_y 1))
+        SDL_SCANCODE_S
+        (set cursor_y (+ cursor_y 1))
+        SDL_SCANCODE_A
+        (set cursor_x (- cursor_x 1))
+        SDL_SCANCODE_D
+        (set cursor_x (+ cursor_x 1))
+        SDL_SCANCODE_SPACE
+        (spawn data width cursor_x cursor_y))))
 
   (update data width height)
 
   (SDL_SetRenderDrawColor renderer 0 0 0 255)
   (SDL_RenderClear renderer)
 
-  (var y 0)
-  (while (< y height)
-    (do
-      (var x 0)
-      (while (< x width)
-        (do
-          (var kind (in data (+ (* width y) x)))
-          (if (== kind 0)
-            (SDL_SetRenderDrawColor renderer 100 0 0 255))
-
-          (if (== kind 1)
-            (do
-              (SDL_SetRenderDrawColor renderer 0 100 0 255)))
-
-          (if (== kind 2)
-            (do
-              (SDL_SetRenderDrawColor renderer 0 0 100 255)))
-
-          (SDL_RenderDrawPoint renderer x y)
-          (set x (+ x 1))))
-      (set y (+ y 1))))
+  (loop [y :range [0 height]
+         x :range [0 width]
+         :let [kind (in data (+ (* width y) x))]]
+    (case kind
+      0 (SDL_SetRenderDrawColor renderer 100 0 0 255)
+      1 (SDL_SetRenderDrawColor renderer 0 100 0 255)
+      2 (SDL_SetRenderDrawColor renderer 0 0 100 255))
+    (SDL_RenderDrawPoint renderer x y))
 
   (draw_cursor renderer cursor_x cursor_y)
 
@@ -163,22 +148,15 @@
   (SDL_Init SDL_INIT_VIDEO)
 
   (var size (* width height))
-
   (var window (SDL_CreateWindow "Spelsylt" 100 100 (* 4 width) (* 4 height) SDL_WINDOW_OPENGL))
   (set renderer (SDL_CreateRenderer window -1 SDL_RENDERER_ACCELERATED))
   (SDL_RenderSetScale renderer 4 4)
 
   (set data (cast [:int] (malloc (* (sizeof int) size))))
 
-  (var yy 0)
-  (while (< yy height)
-    (do
-      (var xx 0)
-      (while (< xx width)
-        (do
-          (put data (+ (* width yy) xx) 0)
-          (set xx (+ xx 1))))
-      (set yy (+ yy 1))))
+  (loop [y :range [0 height]
+         x :range [0 width]]
+    (put data (+ (* width y) x) 0))
 
   (put data (+ 190 (* height 190)) 2)
 

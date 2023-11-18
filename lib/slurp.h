@@ -13,7 +13,7 @@ char *slurp(char *path)
     rewind(f);
     char *buffer = (char *)malloc((n + 1) * sizeof(char));
     assert(buffer != NULL);
-    int read = fread(buffer, sizeof(char), n, f);
+    fread(buffer, sizeof(char), n, f);
 
     buffer[n] = '\0';
 

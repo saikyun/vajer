@@ -38,7 +38,7 @@ void print_source(char *code, AST *ast)
     if (start > 0 && stop > 0)
     {
         log("line %d: ", line_no(code, start));
-        log("%.*s\n", stop - start, code + start);
+        prn("%.*s\n", stop - start, code + start);
     }
     else
     {
@@ -49,7 +49,7 @@ void print_source(char *code, AST *ast)
 
 void print_env(EnvKV *env)
 {
-    log("env %ld:\n", shlen(env));
+    log("env with len %ld:\n", shlen(env));
     for (int i = 0; i < shlen(env); i++)
     {
         prin_ast(env[i].key);
@@ -235,18 +235,6 @@ void _assign_type_names(TypeNameState *state, AST *e)
                 }
             }
 
-            if (value->ast_type == AST_LIST)
-            {
-                log("HEHE\n");
-                log_ast(value);
-                AST *ftype = value->list.elements[0].value_type;
-                // ftype->list.elements[arrlen(ftype->list.elements) - 1] = *type;
-                log_ast(type);
-                log_ast(value);
-            }
-
-            // list[2].value_type = type;
-            // hmput(state->types, &list[2], type);
             hmput(state->types, e, type);
         }
         else
@@ -264,7 +252,6 @@ void _assign_type_names(TypeNameState *state, AST *e)
     {
         for (int i = 0; i < hmlen(e->map.kvs); i++)
         {
-            AstKV kv = e->map.kvs[i];
             _assign_type_names(state, &e->map.kvs[i].value);
             log("insidemap: ");
             log_ast(&e->map.kvs[i].value);
@@ -280,8 +267,6 @@ void _assign_type_names(TypeNameState *state, AST *e)
     case AST_SYMBOL:
         if (!in_types(state->types, e))
         {
-            log("rabarber: ");
-            log_ast(e);
             AST *type = new_symbol(gentype(state));
             e->value_type = type;
             hmput(state->types, e, type);
@@ -415,7 +400,6 @@ Constraint *generate_constraints(EnvKV *types, Constraint *constraints)
                 else if (strcmp(f, "defn") == 0)
                 {
                     sai_assert(list[1].ast_type == AST_SYMBOL);
-                    char *fname = list[1].symbol;
                     sai_assert(list[2].ast_type == AST_LIST);
                     AST *args = list[2].list.elements;
                     AST func_constraint = (AST){.ast_type = AST_LIST};
@@ -439,9 +423,6 @@ Constraint *generate_constraints(EnvKV *types, Constraint *constraints)
                     {
                         last_type = get_types(types, &arrlast(list));
                     }
-
-                    log("YEEE LAST TYPE\n");
-                    log_ast(last_type);
 
                     sai_assert(last_type);
 
@@ -628,10 +609,10 @@ int unify_variable(AST *v, AST *x, EnvKV **env)
     }
     else
     {
-        log("setting ");
-        prin_ast(v);
-        prn(" to ");
-        print_ast(x);
+        // log("setting ");
+        // prin_ast(v);
+        // prn(" to ");
+        // print_ast(x);
         hmput(*env, v, x);
         return 1;
     }
@@ -682,7 +663,7 @@ int unify(AST *x, AST *y, EnvKV **env)
         {
             log("in list, could not unify (differing length)\n");
             prin_ast(x);
-            log(" = ");
+            prn(" = ");
             print_ast(y);
             return 0;
         }
@@ -693,11 +674,11 @@ int unify(AST *x, AST *y, EnvKV **env)
             {
                 log(" >> unify list\t\t");
                 prin_ast(&x->list.elements[i]);
-                log(" = ");
+                prn(" = ");
                 print_ast(&y->list.elements[i]);
-                log(" \t\t\t");
+                prn(" \t\t\t\t\t\t");
                 prin_ast(x);
-                log(" = ");
+                prn(" = ");
                 print_ast(y);
                 return 0;
             }
@@ -713,7 +694,7 @@ int unify(AST *x, AST *y, EnvKV **env)
 
         return unify_maps(x, y, env) && unify_maps(y, x, env);
     }
-    else if (x->ast_type == AST_MAP && y->ast_type == AST_SYMBOL || x->ast_type == AST_SYMBOL && y->ast_type == AST_MAP)
+    else if ((x->ast_type == AST_MAP && y->ast_type == AST_SYMBOL) || (x->ast_type == AST_SYMBOL && y->ast_type == AST_MAP))
     {
         AST *map = x;
         AST *symbol = y;
@@ -793,22 +774,22 @@ AST *infer_types_all(AST *nodes)
     return new_nodes;
 }
 
-AST *resolve_type(EnvKV *env, AST *type)
+AST *resolve_type(EnvKV **env, AST *type)
 {
     AST *resolved_type = type;
     // log("type before: ");
     // print_ast(resolved_type);
     while (is_var(resolved_type))
     {
-        if (!in_types(env, resolved_type))
+        if (!in_types(*env, resolved_type))
         {
-            log("could not resolve type: ");
-            print_ast(resolved_type);
+            // log("could not resolve type: ");
+            // print_ast(resolved_type);
             break;
         }
         else
         {
-            resolved_type = get_types(env, resolved_type);
+            resolved_type = get_types(*env, resolved_type);
         }
     }
 
@@ -818,7 +799,7 @@ AST *resolve_type(EnvKV *env, AST *type)
         log("map: ");
         print_ast(resolved_type);
         AstKV *substruct = resolved_type->map.kvs;
-        AstKV *structs = hmget(env, &STRUCT_KEY)->map.kvs;
+        AstKV *structs = hmget(*env, &STRUCT_KEY)->map.kvs;
         for (int i = 0; i < hmlen(structs); i++)
         {
             AstKV *structer = structs[i].value.map.kvs;
@@ -838,16 +819,16 @@ AST *resolve_type(EnvKV *env, AST *type)
                 print_ast(get_in_map(structer, &k));
 
                 // log("resolve v: ");
-                // print_ast(resolve_type(env, &v));
+                // print_ast(resolve_type(*env, &v));
                 // log("\n");
 
-                int res = unify(&substruct[j].value, get_in_map(structer, &k), &env);
+                int res = unify(&substruct[j].value, get_in_map(structer, &k), env);
                 // int res = 1;
 
                 if (res == 0)
                 {
                     log("failed unify :(\n");
-                    // print_env(env);
+                    // print_env(*env);
                     sai_assert(0);
                 }
             }
@@ -900,7 +881,7 @@ AST *resolve_type(EnvKV *env, AST *type)
     }
 }
 
-void ast_resolve_types(EnvKV *env, AST *ast)
+void ast_resolve_types(EnvKV **env, AST *ast)
 {
     if (ast->value_type != NULL)
     {
@@ -1017,31 +998,43 @@ void ast_resolve_types(EnvKV *env, AST *ast)
     }
 }
 
-void ast_resolve_types_all(EnvKV *env, char *code, AST *ast)
+void ast_resolve_types_all(EnvKV **env, char *code, AST *ast)
 {
-    if (!hmget(env, &STRUCT_KEY))
+    int do_print = 1;
+
+    if (hmgeti(*env, &STRUCT_KEY) == -1)
     {
-        hmput(env, &STRUCT_KEY, new_map((AST){.ast_type = AST_MAP, .map = (Map){}}));
+        hmput(*env, &STRUCT_KEY, new_map((AST){.ast_type = AST_MAP, .map = (Map){}}));
     }
 
     // log("\e[36m>>> env before assigning type names\e[0m\n");
     // print_env(env);
     //  EnvKV *types = NULL;
-    env = assign_type_names_all(ast, env);
-    log("\n\e[41m>>> env after assigning type names\e[0m\n");
-    print_env(env);
+    *env = assign_type_names_all(ast, *env);
+    if (do_print)
+    {
+        log("\n\e[41m>>> env after assigning type names\e[0m\n");
+        print_env(*env);
+    }
 
     Constraint *constraints = NULL;
-    constraints = generate_constraints(env, constraints);
+    constraints = generate_constraints(*env, constraints);
 
-    log("\n\e[42m>>> constraints\e[0m\n");
+    sai_assert(shlen(*env) > 0);
+    if (do_print)
+    {
+        log("\n\e[42m>>> constraints\e[0m\n");
+    }
     CURRENT_CODE = code;
     for (int i = 0; i < arrlen(constraints); i++)
     {
-        prin_ast(&constraints[i].left);
-        prn(" = ");
-        print_ast(&constraints[i].right);
-        int res = unify(&constraints[i].left, &constraints[i].right, &env);
+        if (do_print)
+        {
+            prin_ast(&constraints[i].left);
+            prn(" = ");
+            print_ast(&constraints[i].right);
+        }
+        int res = unify(&constraints[i].left, &constraints[i].right, env);
         if (!res)
         {
             if (constraints[i].left_expr && constraints[i].right_expr)
@@ -1057,18 +1050,31 @@ void ast_resolve_types_all(EnvKV *env, char *code, AST *ast)
         }
         sai_assert(res);
     }
-    prn("\n");
-
-    log(">> \e[35menv before resolution\e[0m\n");
-    // print_env(env);
-    prn("\n\n");
+    if (do_print)
+    {
+        prn("\n");
+        log(">> \e[35menv before resolution\e[0m\n");
+        print_env(*env);
+        prn("\n\n");
+    }
 
     for (int i = 0; i < arrlen(ast); i++)
     {
         ast_resolve_types(env, &ast[i]);
     }
 
-    log("\n>> \e[35menv after resolution\e[0m\n");
+    sai_assert(shlen(*env) > 0);
+
+    // purge ?t from env???
+    for (int i = hmlen(*env) - 1; i >= 0; i--)
+    {
+        if (is_var((*env)[i].key))
+        {
+            // hmdel(*env, (*env)[i].key);
+        }
+    }
+
+    // log("\n>> \e[35menv after resolution\e[0m\n");
     // print_env(env);
-    prn("\n\n");
+    // prn("\n\n");
 }
