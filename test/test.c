@@ -40,7 +40,7 @@ int main(int argc, char **argv)
     eval(&env, slurp("test/macro/list.lisp"));
     //   eval(standard_environment(), slurp("test/macro/defmacro.lisp"));
     //  eval(standard_environment(), slurp("test/inference/same-symbol.lisp"));
-    int do_test = 0;
+    int do_test = 1;
 
     if (do_test)
     {
