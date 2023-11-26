@@ -1346,3 +1346,13 @@ This might work pretty all right. I also need to get the `CFunEntry *entries` so
 ----------
 
 Okay, so now macros seem to work, when looking in `test/macro/list.lisp`. Pretty cool that a macro can call a function. :)
+
+
+
+--------------------------------
+
+Okay, so trying to figure out how to properly run one form at a time. Currently working in `experiments/repl.c`.
+
+For some reason it currently works with some forms but not for multiple "iterations". I think the types are getting a bit messed up, i.e. it assigns new `?tx` types to things, where it should instead remember what the last `x` was. I think I could solve this by making `VajerEnv` hold more information, like the types, and keep these around between `vajer_eval`-runs.
+
+This is so long now, I'm gonna archive this and create a new one.
