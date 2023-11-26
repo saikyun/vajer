@@ -20,9 +20,11 @@ int tcc_backtrace(const char *fmt, ...);
 #define prn(...) \
     printf(__VA_ARGS__)
 
-#define log(...)                                \
-    printf("LOG: %s:%d: ", __FILE__, __LINE__); \
-    printf(__VA_ARGS__)
+#define log(...)                                    \
+    {                                               \
+        printf("LOG: %s:%d: ", __FILE__, __LINE__); \
+        printf(__VA_ARGS__);                        \
+    }
 
 #else
 
@@ -767,6 +769,11 @@ int ast_eq(AST *n1, AST *n2)
     }
 }
 
+AST list0()
+{
+    return (AST){.ast_type = AST_LIST, .list = (List){.type = LIST_PARENS, .elements = NULL}};
+}
+
 AST list1(AST n1)
 {
     AST *els = NULL;
@@ -854,6 +861,13 @@ AST *new_list(AST list)
     AST *l = (AST *)malloc(sizeof(AST));
     *l = list;
     return l;
+}
+
+AST *new_number(int n)
+{
+    AST *num = (AST *)malloc(sizeof(AST));
+    num->number = n;
+    return num;
 }
 
 AST *arr_to_list(AST *arr)
@@ -1376,13 +1390,11 @@ SymAST transform_insert(CTransformState *state, AST *node)
 
     if (value.sym == NULL)
     {
-        log("WAAaaaaa <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
         node->list.elements[3] = value.ast;
         return (SymAST){.sym = NULL, .ast = *node};
     }
     else
     {
-        log("reeeeeeeee <");
         AST *vt = node->list.elements[3].value_type;
         node->list.elements[3] = symbol(value.sym);
         node->list.elements[3].value_type = vt;
@@ -1860,6 +1872,8 @@ void c_compile_defn(CCompilationState *state, AST node)
 
     string(&state->source, ") {\n");
 
+    // TODO: atm something adds an extra [] to functions
+    // probably should remove that
     for (int i = 4; i < arrlen(node.list.elements); i++)
     {
         c_compile_in_block(state, node.list.elements[i]);

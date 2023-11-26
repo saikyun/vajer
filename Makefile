@@ -5,7 +5,7 @@ INCLUDES=-Ilib -I/usr/local/include/SDL2 -I/usrc/local/include/SDL2_ttf
 LIBS=-Llib/tinycc -ltcc -L/usr/local/lib -lSDL2
 
 experiment: FORCE
-	./lib/tinycc/tcc $(INCLUDES) -I. $(LIBS) $(CFLAGS) -run experiments/tcc_compile_in_steps.c
+	./lib/tinycc/tcc -bt10 -DCOMPILED_WITH_TCC $(INCLUDES) -I. -Isrc $(LIBS) $(CFLAGS) -run experiments/repl.c
 
 test: FORCE
 # experiment

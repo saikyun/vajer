@@ -246,12 +246,7 @@ typedef struct MacroState
 
 void defmacro(MacroState *state, AST *ast)
 {
-    log("\n\e[35m>> defmacro\e[0\n");
-    print_ast(ast);
-
     AST *name = &ast->list.elements[1];
-
-    prn("adding macro: %s\n", name->symbol);
 
     hmput(state->macros, name, ast);
 
@@ -291,22 +286,16 @@ AST *_ast_eval_macros(MacroState *state, AST *ast)
                     for (int i = 0; i < shlen(res); i++)
                     {
                         sai_assert(shgeti(state->cenv, res[i].key) == -1);
-                        log("key: %s\n", res[i].key);
                         shput(state->cenv, res[i].key, res[i].value);
-
-                        log("after intermittent compilation:\n");
 
                         AST *thing = get_types(env, new_symbol(res[i].key));
 
                         if (thing)
                         {
                             AST *type = resolve_type(&env, thing);
-                            print_ast(type);
                             hmput(state->env, new_symbol(res[i].key), resolve_type(&env, thing));
                         }
                     }
-
-                    print_env(state->env);
 
                     arrfree(state->forms_to_compile);
                 }
@@ -319,9 +308,6 @@ AST *_ast_eval_macros(MacroState *state, AST *ast)
                 AST *macro = get_types(state->macros, &head);
                 if (macro)
                 {
-                    log("found macro!\n");
-                    print_ast(macro);
-
                     // if the macro is not in state->cenv, it has not been compiled yet
                     if (shgeti(state->cenv, head.symbol) == -1)
                     {
@@ -342,15 +328,6 @@ AST *_ast_eval_macros(MacroState *state, AST *ast)
                         arrpush(new_ast, macrofun);
                         // arrpush(new_ast, *ast);
 
-                        prn("\n");
-                        log("new ast elements:\n");
-                        for (int i = 0; i < arrlen(new_ast); i++)
-                        {
-                            print_ast(&new_ast[i]);
-                        }
-
-                        log("state->env, in macro: %p\n", state->env);
-                        // AST *res = eval_macro(state->cenv, standard_environment(), new_ast, head.symbol, l);
                         EnvKV *env = standard_environment();
 
                         for (int i = 0; i < hmlen(state->env); i++)
@@ -358,19 +335,9 @@ AST *_ast_eval_macros(MacroState *state, AST *ast)
                             hmput(env, state->env[i].key, state->env[i].value);
                         }
 
-                        // log("macro stuff\n");
-                        // print_env(state->env);
-
                         CEntry *cenv = resolve_types_eval_ast(state->cenv, &env, new_ast);
 
                         shput(state->cenv, head.symbol, shget(cenv, head.symbol));
-
-                        // log("macro stuff after\n");
-                        // print_env(env);
-
-                        log("len: %d\n", (int)shlen(cenv));
-
-                        log("wat\n");
                     }
 
                     sai_assert(shgeti(state->cenv, head.symbol) != -1);
@@ -385,12 +352,6 @@ AST *_ast_eval_macros(MacroState *state, AST *ast)
                     }
 
                     AST *res = macrocall(l);
-
-                    log("new ast:\n");
-                    print_ast(res);
-
-                    log("macro afterwards...?\n");
-                    print_ast(macro);
 
                     // TODO: not 100% sure what this means, it was meant to
                     // be used with macros calling macros, but that doesn't seem to work atm anyway
@@ -506,6 +467,49 @@ AST *c_ast(AST *ast)
 {
     int do_print = 0;
 
+    // this code creates a `vajer$run` function meant to contain all code
+    // that can't be run in the top level in C
+    /*
+    AST run = list3(symbol("defn"), symbol("vajer$run"), vector(list0()));
+
+    for (int i = 0; i < arrlen(ast); i++)
+    {
+        AST n = ast[i];
+
+        if (n.ast_type == AST_LIST && arrlen(n.list.elements) > 0 && (ast_eq(&n.list.elements[0], new_symbol("defn")) || ast_eq(&n.list.elements[0], new_symbol("def"))))
+            continue;
+
+        log("top level form thing\n");
+        print_ast(&n);
+        arrpush(run.list.elements, n);
+        arrdel(ast, i);
+        i--;
+    }
+
+    if (arrlen(run.list.elements) > 3)
+    {
+        run.list.elements[1].value_type = new_list(list2(symbol("->"), *arrlast(run.list.elements).value_type));
+
+        log("RUN 1 1 1 1 1 1 1 1 1 1 1\n");
+        print_ast(&run);
+
+        AST *list = NULL;
+        arrpush(list, run);
+        // list = resolve_types(env, list, "");
+
+        arrpush(ast, list[0]);
+
+        // AST *list = NULL;
+        // arrpush(list, run);
+
+        // list = resolve_types(env, list, "");
+        // list = c_ast(env, list);
+
+        log("RUN\n");
+        print_ast(list);
+    }
+    */
+
     if (do_print)
     {
         log("\n>> \e[35mAST\e[0m\n");
@@ -514,13 +518,14 @@ AST *c_ast(AST *ast)
         {
             print_ast(&ast[i]);
         }
-        log("\n>> \e[35mEnd of AST\e[0m\n");
+        prn(">> \e[35mEnd of AST\e[0m\n");
     }
 
     AST *transformed_nodes = c_transform_all(ast);
+
     if (do_print)
     {
-        prn("\n");
+        log(">>> transformed nodes\n");
         for (int i = 0; i < arrlen(transformed_nodes); i++)
         {
             print_ast(&transformed_nodes[i]);
@@ -533,7 +538,7 @@ AST *c_ast(AST *ast)
 
 ////////////////// Eval / compile //////////////////////
 
-CCompilationState *compile_ast_to_file(AST *ast, char *path)
+CCompilationState *compile_ast_to_file(EnvKV **env, AST *ast, char *path)
 {
     CCompilationState *res = c_compile_all(c_ast(ast));
 
@@ -557,11 +562,12 @@ CCompilationState *compile_ast_to_file(AST *ast, char *path)
 
 CCompilationState *compile_to_file(EnvKV **env, char *code, char *path)
 {
-    return compile_ast_to_file(vajer_ast(env, code), path);
+    return compile_ast_to_file(env, vajer_ast(env, code), path);
 }
 
 CEntry *eval_ast(CEntry *cenv, AST *ast)
 {
+    int do_print = 0;
 
     CCompilationState *res = c_compile_all(c_ast(ast));
     // CCompilationState *res = compile_ast_to_file(ast, "build/evaled.c");
@@ -579,20 +585,26 @@ CEntry *eval_ast(CEntry *cenv, AST *ast)
 
     // sai_assert(tcc_add_file(s, "src/lisp.h") == 0);
 
-    log("symbols in res:\n");
-    for (int i = 0; i < shlen(res->env); i++)
+    if (do_print)
     {
-        prn("%s\n", res->env[i].key);
+        log("symbols in res:\n");
+        for (int i = 0; i < shlen(res->env); i++)
+        {
+            prn("%s\n", res->env[i].key);
+        }
     }
 
     String str = {};
 
     for (int i = 0; i < shlen(cenv); i++)
     {
-        log("adding symbol from cenv\n");
-        prn("%s is ", cenv[i].key);
         AST type = cenv[i].value.type;
-        print_ast(&type);
+        if (do_print)
+        {
+            log("adding symbol from cenv\n");
+            prn("%s is ", cenv[i].key);
+            print_ast(&type);
+        }
 
         type_to_string(&str, arrlast(type.list.elements));
         strstr(&str, " ", cenv[i].key, "(");
@@ -629,7 +641,8 @@ CEntry *eval_ast(CEntry *cenv, AST *ast)
 
     if (str.str != NULL)
     {
-        log("externs: %s\n", str.str);
+        if (do_print)
+            log("externs: %s\n", str.str);
 
         fputs(str.str, f);
 
@@ -649,22 +662,29 @@ CEntry *eval_ast(CEntry *cenv, AST *ast)
 
     sai_assert(tcc_relocate(s, ptr) != -1);
 
-    printf("res:\n");
+    if (do_print)
+        log("res:\n");
+
     for (int i = 0; i < shlen(res->env); i++)
     {
         CEntry *entry = &res->env[i];
-        log("%s", entry->key);
-        prn(" is ");
-        print_ast(&entry->value.type);
+        if (do_print)
+        {
+            log("%s", entry->key);
+            prn(" is ");
+            print_ast(&entry->value.type);
+        }
 
         entry->value.value = tcc_get_symbol(s, entry->key);
 
-        log("ptr: %p\n", entry->value.value);
+        if (do_print)
+            log("ptr: %p\n", entry->value.value);
     }
 
     if (shgeti(res->env, "main") != -1)
     {
-        log("found main\n");
+        if (do_print)
+            log("found main\n");
         void *(*f)() = shget(res->env, "main").value;
         f();
     }

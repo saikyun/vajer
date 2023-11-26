@@ -173,7 +173,6 @@ void _assign_type_names(TypeNameState *state, AST *e)
 
             for (int i = 0; i < hmlen(map->map.kvs); i++)
             {
-                log_ast(&map->map.kvs[i].value);
                 arrpush(els, map->map.kvs[i].value);
             }
 
@@ -253,14 +252,10 @@ void _assign_type_names(TypeNameState *state, AST *e)
         for (int i = 0; i < hmlen(e->map.kvs); i++)
         {
             _assign_type_names(state, &e->map.kvs[i].value);
-            log("insidemap: ");
-            log_ast(&e->map.kvs[i].value);
         }
 
         e->value_type = new_map(map1(e->map.kvs[0].key, *e->map.kvs[0].value.value_type));
         hmput(state->types, e, e->value_type);
-        log("wat: ");
-        log_ast(e);
 
         break;
     }
@@ -304,6 +299,7 @@ EnvKV *assign_type_names(AST *e, EnvKV *types)
     return state.types;
 }
 
+// TODO: change EnvKV to some sort of VajerEnv in which I can store other state as well
 EnvKV *assign_type_names_all(AST *exprs, EnvKV *types)
 {
     TypeNameState state = {.types = types};
@@ -528,9 +524,6 @@ int unify_variable(AST *v, AST *x, EnvKV **env)
 
                 if (structer)
                 {
-                    log("is struct: ");
-                    log_ast(existing);
-
                     if (contains_all_keys(structer->map.kvs, x->map.kvs))
                     {
                         unify(structer, x, env);
@@ -623,13 +616,6 @@ int unify_maps(AST *x, AST *y, EnvKV **env)
     for (int i = 0; i < hmlen(x->map.kvs); i++)
     {
         AST *v = get_in_map(y->map.kvs, &x->map.kvs[i].key);
-        if (v)
-        {
-            log("");
-            prin_ast(v);
-            prn(" = ");
-            print_ast(&x->map.kvs[i].value);
-        }
         if (v && unify(&x->map.kvs[i].value, v, env) == 0)
         {
             log("in map could not unify");
@@ -688,10 +674,6 @@ int unify(AST *x, AST *y, EnvKV **env)
     }
     else if (x->ast_type == AST_MAP && y->ast_type == AST_MAP)
     {
-        log("maps:\n");
-        print_ast(x);
-        print_ast(y);
-
         return unify_maps(x, y, env) && unify_maps(y, x, env);
     }
     else if ((x->ast_type == AST_MAP && y->ast_type == AST_SYMBOL) || (x->ast_type == AST_SYMBOL && y->ast_type == AST_MAP))
@@ -707,13 +689,6 @@ int unify(AST *x, AST *y, EnvKV **env)
         AST *structer = get_in_map(get_types(*env, &STRUCT_KEY)->map.kvs, symbol);
 
         sai_assert(structer);
-
-        log("map / symbol: ");
-        prin_ast(map);
-        log(" = ");
-        prin_ast(symbol);
-        log(" - ");
-        print_ast(structer);
 
         if (unify(structer, map, env))
         {
@@ -796,39 +771,20 @@ AST *resolve_type(EnvKV **env, AST *type)
     if (resolved_type->ast_type == AST_MAP)
     {
         AST *matching_struct = NULL;
-        log("map: ");
-        print_ast(resolved_type);
         AstKV *substruct = resolved_type->map.kvs;
         AstKV *structs = hmget(*env, &STRUCT_KEY)->map.kvs;
         for (int i = 0; i < hmlen(structs); i++)
         {
             AstKV *structer = structs[i].value.map.kvs;
-            log("struct to check: ");
-            print_ast(&structs[i].value);
             for (int j = 0; j < hmlen(substruct); j++)
             {
                 AST k = substruct[j].key;
-                AST v = substruct[j].value;
-
-                log("matching key:\n");
-                log("\tk: ");
-                print_ast(&k);
-                log("\tv: ");
-                print_ast(&v);
-                log("\tstructer k: ");
-                print_ast(get_in_map(structer, &k));
-
-                // log("resolve v: ");
-                // print_ast(resolve_type(*env, &v));
-                // log("\n");
 
                 int res = unify(&substruct[j].value, get_in_map(structer, &k), env);
-                // int res = 1;
 
                 if (res == 0)
                 {
                     log("failed unify :(\n");
-                    // print_env(*env);
                     sai_assert(0);
                 }
             }
@@ -839,6 +795,7 @@ AST *resolve_type(EnvKV **env, AST *type)
                 prin_ast(matching_struct);
                 log(" = ");
                 print_ast(&structs[i].key);
+                sai_assert(0);
             }
 
             matching_struct = &structs[i].key;
@@ -1000,7 +957,7 @@ void ast_resolve_types(EnvKV **env, AST *ast)
 
 void ast_resolve_types_all(EnvKV **env, char *code, AST *ast)
 {
-    int do_print = 1;
+    int do_print = 0;
 
     if (hmgeti(*env, &STRUCT_KEY) == -1)
     {
