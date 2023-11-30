@@ -4,116 +4,126 @@
 
 /////////////////// Env ///////////////////////////
 
-void add_op(EnvKV **env, char *type, char *op)
+void add_op(TypeKV **types, char *type, char *op)
 {
     AST *type_ast = (AST *)malloc(sizeof(AST));
     *type_ast = list4(symbol(type), symbol(type), symbol("->"), symbol(type));
-    hmput(*env, new_symbol(op), type_ast);
+    hmput(*types, new_symbol(op), type_ast);
 }
 
-EnvKV *standard_environment()
+typedef struct VajerEnv
 {
-    EnvKV *env = NULL;
+    TypeKV *types;
+    EnvKV *values;
+} VajerEnv;
 
-    add_op(&env, ":int", "+");
-    add_op(&env, ":int", "/");
-    add_op(&env, ":int", "<");
-    add_op(&env, ":int", ">");
-    add_op(&env, ":int", "<=");
-    add_op(&env, ":int", ">=");
-    add_op(&env, ":int", "%");
-    add_op(&env, ":int", "!=");
-    add_op(&env, ":int", "||");
+VajerEnv *standard_environment()
+{
+    TypeKV *types = NULL;
+
+    add_op(&types, ":int", "+");
+    add_op(&types, ":int", "/");
+    add_op(&types, ":int", "<");
+    add_op(&types, ":int", ">");
+    add_op(&types, ":int", "<=");
+    add_op(&types, ":int", ">=");
+    add_op(&types, ":int", "%");
+    add_op(&types, ":int", "!=");
+    add_op(&types, ":int", "||");
     {
         AST *type = (AST *)malloc(sizeof(AST));
         *type = list4(symbol("?T"), symbol("?T"), symbol("->"), symbol(":int"));
-        hmput(env, new_symbol("=="), type);
+        hmput(types, new_symbol("=="), type);
     }
     {
         AST *type = (AST *)malloc(sizeof(AST));
         *type = list3(symbol(":AST"), symbol("->"), symbol(":void"));
-        hmput(env, new_symbol("print_ast2"), type);
+        hmput(types, new_symbol("print_ast2"), type);
     }
     {
         AST *type = (AST *)malloc(sizeof(AST));
         *type = list3(symbol("?T"), symbol("->"), symbol(":void"));
-        hmput(env, new_symbol("assert"), type);
+        hmput(types, new_symbol("assert"), type);
     }
     {
         AST *type = (AST *)malloc(sizeof(AST));
         *type = list4(list1(symbol(":char")), symbol("?T"), symbol("->"), symbol(":void"));
-        hmput(env, new_symbol("printf"), type);
+        hmput(types, new_symbol("printf"), type);
     }
     {
         AST *type = (AST *)malloc(sizeof(AST));
         *type = list4(symbol(":int"), symbol(":int"), symbol("->"), symbol(":int"));
-        hmput(env, new_symbol("&&"), type);
+        hmput(types, new_symbol("&&"), type);
     }
     {
         AST *type = (AST *)malloc(sizeof(AST));
         *type = list4(symbol(":int"), symbol(":int"), symbol("->"), symbol(":int"));
-        hmput(env, new_symbol("-"), type);
+        hmput(types, new_symbol("-"), type);
     }
     {
         AST *type = (AST *)malloc(sizeof(AST));
         *type = list4(symbol(":int"), symbol(":int"), symbol("->"), symbol(":int"));
-        hmput(env, new_symbol("*"), type);
+        hmput(types, new_symbol("*"), type);
     }
     {
         AST *type = (AST *)malloc(sizeof(AST));
         *type = list4(list1(symbol("?T")), value_type_int, symbol("->"), symbol("?T"));
-        hmput(env, new_symbol("in"), type);
+        hmput(types, new_symbol("in"), type);
     }
     {
         AST *type = (AST *)malloc(sizeof(AST));
         *type = list3(list1(symbol("?T")), symbol("->"), value_type_int);
-        hmput(env, new_symbol("arrlen"), type);
+        hmput(types, new_symbol("arrlen"), type);
     }
     {
         AST *type = (AST *)malloc(sizeof(AST));
         *type = list4(list1(symbol("?T")), symbol("?T"), symbol("->"), value_type_void);
-        hmput(env, new_symbol("arrpush"), type);
+        hmput(types, new_symbol("arrpush"), type);
     }
     {
         AST *type = (AST *)malloc(sizeof(AST));
         *type = list5(list1(symbol("?T")), value_type_int, symbol("?T"), symbol("->"), value_type_void);
-        hmput(env, new_symbol("put"), type);
+        hmput(types, new_symbol("put"), type);
     }
     {
         AST *type = (AST *)malloc(sizeof(AST));
         *type = list4(symbol("?T"), symbol("?T"), symbol("->"), value_type_void);
-        hmput(env, new_symbol("set"), type);
+        hmput(types, new_symbol("set"), type);
     }
     {
         AST *type = (AST *)malloc(sizeof(AST));
         *type = list5(symbol("?T"), symbol("?T2"), symbol("?T3"), symbol("->"), value_type_void);
-        hmput(env, new_symbol(":="), type);
+        hmput(types, new_symbol(":="), type);
     }
     {
         AST *type = (AST *)malloc(sizeof(AST));
         *type = list4(symbol("?T"), symbol("?T"), symbol("->"), value_type_void);
-        hmput(env, new_symbol("var"), type);
+        hmput(types, new_symbol("var"), type);
     }
     {
         AST *type = (AST *)malloc(sizeof(AST));
         *type = list4(symbol("?T"), symbol("?T2"), symbol("->"), value_type_void);
-        hmput(env, new_symbol("while"), type);
+        hmput(types, new_symbol("while"), type);
     }
     {
         AST *type = (AST *)malloc(sizeof(AST));
         *type = list4(symbol("?T"), symbol("?T"), symbol("->"), value_type_void);
-        hmput(env, new_symbol("declare"), type);
+        hmput(types, new_symbol("declare"), type);
     }
     {
         AST *type = (AST *)malloc(sizeof(AST));
         *type = list4(symbol("?T"), symbol("?T"), symbol("->"), value_type_void);
-        hmput(env, new_symbol("declare-var"), type);
+        hmput(types, new_symbol("declare-var"), type);
     }
     {
         AST *type = (AST *)malloc(sizeof(AST));
         *type = list4(symbol("?T"), symbol("?T"), symbol("->"), value_type_void);
-        hmput(env, new_symbol("defstruct"), type);
+        hmput(types, new_symbol("defstruct"), type);
     }
+
+    VajerEnv *env = (VajerEnv *)malloc(sizeof VajerEnv);
+    env->types = types;
+    env->values = NULL;
 
     return env;
 }
@@ -237,9 +247,8 @@ void ast_add_scopes(AST *ast)
 
 typedef struct MacroState
 {
-    EnvKV *macros;
-    EnvKV *env;
-    CEntry *cenv;
+    TypeKV *macros;
+    VajerEnv *env;
 
     AST *forms_to_compile;
 } MacroState;
@@ -256,9 +265,9 @@ void defmacro(MacroState *state, AST *ast)
     // eval_ast(ast);
 }
 
-AST *eval_macro(CEntry *cenv, EnvKV **env, AST *ast, char *symname, AST *args);
+AST *eval_macro(EnvKV *cenv, TypeKV **env, AST *ast, char *symname, AST *args);
 
-CEntry *resolve_types_eval_ast(CEntry *cenv, EnvKV **env, AST *ast);
+void resolve_types_eval_ast(VajerEnv *env, AST *ast);
 
 AST *_ast_eval_macros(MacroState *state, AST *ast)
 {
@@ -275,16 +284,17 @@ AST *_ast_eval_macros(MacroState *state, AST *ast)
             {
                 if (arrlen(state->forms_to_compile) > 0)
                 {
-                    EnvKV *env = standard_environment();
+                    VajerEnv *env = standard_environment();
 
-                    for (int i = 0; i < hmlen(state->env); i++)
+                    for (int i = 0; i < hmlen(state->env->types); i++)
                     {
-                        hmput(env, state->env[i].key, state->env[i].value);
+                        hmput(env->types, state->env->types[i].key, state->env->types[i].value);
                     }
 
-                    CEntry *res = resolve_types_eval_ast(state->cenv, &env, state->forms_to_compile);
-                    for (int i = 0; i < shlen(res); i++)
+                    resolve_types_eval_ast(env, state->forms_to_compile);
+                    for (int i = 0; i < shlen(env->values); i++)
                     {
+                        // TODO: keep refactoring to env
                         sai_assert(shgeti(state->cenv, res[i].key) == -1);
                         shput(state->cenv, res[i].key, res[i].value);
 
@@ -292,7 +302,6 @@ AST *_ast_eval_macros(MacroState *state, AST *ast)
 
                         if (thing)
                         {
-                            AST *type = resolve_type(&env, thing);
                             hmput(state->env, new_symbol(res[i].key), resolve_type(&env, thing));
                         }
                     }
@@ -328,21 +337,21 @@ AST *_ast_eval_macros(MacroState *state, AST *ast)
                         arrpush(new_ast, macrofun);
                         // arrpush(new_ast, *ast);
 
-                        EnvKV *env = standard_environment();
+                        TypeKV *env = standard_environment();
 
                         for (int i = 0; i < hmlen(state->env); i++)
                         {
                             hmput(env, state->env[i].key, state->env[i].value);
                         }
 
-                        CEntry *cenv = resolve_types_eval_ast(state->cenv, &env, new_ast);
+                        EnvKV *cenv = resolve_types_eval_ast(state->cenv, &env, new_ast);
 
                         shput(state->cenv, head.symbol, shget(cenv, head.symbol));
                     }
 
                     sai_assert(shgeti(state->cenv, head.symbol) != -1);
 
-                    AST *(*macrocall)(AST *) = shget(state->cenv, head.symbol).value;
+                    AST *(*macrocall)(AST *) = shget(state->cenv, head.symbol).cvalue;
 
                     AST *l = NULL;
 
@@ -393,7 +402,7 @@ AST *_ast_eval_macros(MacroState *state, AST *ast)
     return ast;
 }
 
-void ast_eval_macros(EnvKV *env, AST *ast)
+void ast_eval_macros(TypeKV *env, AST *ast)
 {
     MacroState state = {.env = NULL, .cenv = NULL};
 
@@ -408,7 +417,7 @@ void ast_eval_macros(EnvKV *env, AST *ast)
     }
 }
 
-AST *resolve_types(EnvKV **env, AST *root_nodes, char *code)
+AST *resolve_types(TypeKV **env, AST *root_nodes, char *code)
 {
     int do_print = 0;
 
@@ -436,7 +445,7 @@ AST *resolve_types(EnvKV **env, AST *root_nodes, char *code)
     return root_nodes;
 }
 
-AST *vajer_ast(EnvKV **env, char *code)
+AST *vajer_ast(TypeKV **env, char *code)
 {
     int do_print = 0;
     if (do_print)
@@ -538,7 +547,7 @@ AST *c_ast(AST *ast)
 
 ////////////////// Eval / compile //////////////////////
 
-CCompilationState *compile_ast_to_file(EnvKV **env, AST *ast, char *path)
+CCompilationState *compile_ast_to_file(TypeKV **env, AST *ast, char *path)
 {
     CCompilationState *res = c_compile_all(c_ast(ast));
 
@@ -560,12 +569,12 @@ CCompilationState *compile_ast_to_file(EnvKV **env, AST *ast, char *path)
     return res;
 }
 
-CCompilationState *compile_to_file(EnvKV **env, char *code, char *path)
+CCompilationState *compile_to_file(TypeKV **env, char *code, char *path)
 {
     return compile_ast_to_file(env, vajer_ast(env, code), path);
 }
 
-CEntry *eval_ast(CEntry *cenv, AST *ast)
+void eval_ast(VajerEnv *env, AST *ast)
 {
     int do_print = 0;
 
@@ -596,32 +605,32 @@ CEntry *eval_ast(CEntry *cenv, AST *ast)
 
     String str = {};
 
-    for (int i = 0; i < shlen(cenv); i++)
+    for (int i = 0; i < shlen(env->values); i++)
     {
-        AST type = cenv[i].value.type;
+        AST *type = get_types(env->types, env->values[i].value.symbol);
         if (do_print)
         {
             log("adding symbol from cenv\n");
-            prn("%s is ", cenv[i].key);
-            print_ast(&type);
+            prn("%s is ", env->values[i].key);
+            print_ast(type);
         }
 
-        type_to_string(&str, arrlast(type.list.elements));
-        strstr(&str, " ", cenv[i].key, "(");
+        type_to_string(&str, arrlast(type->list.elements));
+        strstr(&str, " ", env->values[i].key, "(");
         // type_to_string(&str, cenv[i].value.type);
 
         // ignore -> and return type
-        for (int i = 0; i < arrlen(type.list.elements) - 2; i++)
+        for (int i = 0; i < arrlen(type->list.elements) - 2; i++)
         {
-            type_to_string(&str, type.list.elements[i]);
-            if (i != arrlen(type.list.elements) - 3)
+            type_to_string(&str, type->list.elements[i]);
+            if (i != arrlen(type->list.elements) - 3)
             {
                 string(&str, ", ");
             }
         }
 
         strstr(&str, ");\n");
-        tcc_add_symbol(s, cenv[i].key, cenv[i].value.value);
+        tcc_add_symbol(s, env->values[i].key, env->values[i].value.cvalue);
     }
 
     char *path = "build/eval_ast.c";
@@ -667,44 +676,43 @@ CEntry *eval_ast(CEntry *cenv, AST *ast)
 
     for (int i = 0; i < shlen(res->env); i++)
     {
-        CEntry *entry = &res->env[i];
+        EnvKV *entry = &res->env[i];
         if (do_print)
         {
             log("%s", entry->key);
             prn(" is ");
-            print_ast(&entry->value.type);
+            print_ast(get_types(env->types, env->values[i].value.symbol));
         }
 
-        entry->value.value = tcc_get_symbol(s, entry->key);
+        entry->value.cvalue = tcc_get_symbol(s, entry->key);
 
         if (do_print)
-            log("ptr: %p\n", entry->value.value);
+            log("ptr: %p\n", entry->value.cvalue);
     }
 
     if (shgeti(res->env, "main") != -1)
     {
         if (do_print)
             log("found main\n");
-        void *(*f)() = shget(res->env, "main").value;
+        void *(*f)() = shget(res->env, "main").cvalue;
         f();
     }
 
     // sai_assert(tcc_run(s, 0, NULL) == 0);
-
-    return res->env;
+    // return res->env;
 }
 
-CEntry *resolve_types_eval_ast(CEntry *cenv, EnvKV **env, AST *ast)
+void resolve_types_eval_ast(VajerEnv *env, AST *ast)
 {
-    return eval_ast(cenv, resolve_types(env, ast, ""));
+    return eval_ast(env, resolve_types(env, ast, ""));
 }
 
-CEntry *eval(EnvKV **env, char *code)
+EnvKV *eval(TypeKV **env, char *code)
 {
     return eval_ast(NULL, vajer_ast(env, code));
 }
 
-AST *eval_macro(CEntry *cenv, EnvKV **env, AST *ast, char *symname, AST *args)
+AST *eval_macro(EnvKV *cenv, TypeKV **env, AST *ast, char *symname, AST *args)
 {
     TCCState *s = tcc_new();
 

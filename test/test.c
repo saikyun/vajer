@@ -36,7 +36,7 @@ int main(int argc, char **argv)
     init_sig_handler(argv[0]);
 #endif
 #endif
-    // EnvKV *env = standard_environment();
+    // TypeKV *env = standard_environment();
     // eval(&env, slurp("test/macro/list.lisp"));
     //   eval(standard_environment(), slurp("test/macro/defmacro.lisp"));
     //  eval(standard_environment(), slurp("test/inference/same-symbol.lisp"));

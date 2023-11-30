@@ -363,18 +363,11 @@ typedef struct AstKV
     AST value;
 } AstKV;
 
-typedef struct EnvKV
+typedef struct TypeKV
 {
     AST *key;
     AST *value;
-} EnvKV;
-
-typedef struct Env
-{
-    EnvKV *kvs;
-    struct Env *children;
-    struct Env *parent;
-} Env;
+} TypeKV;
 
 typedef struct ParseState
 {
@@ -1078,10 +1071,10 @@ AST *parse_all(const char *code, Token *tokens)
 
 typedef struct TypeState
 {
-    EnvKV *globals;
+    TypeKV *globals;
 } TypeState;
 
-int in_types(EnvKV *types, AST *e)
+int in_types(TypeKV *types, AST *e)
 {
     for (int i = 0; i < hmlen(types); i++)
     {
@@ -1091,21 +1084,7 @@ int in_types(EnvKV *types, AST *e)
     return 0;
 }
 
-AST *get_in_env(Env *env, AST *k)
-{
-    for (int i = 0; i < hmlen(env->kvs); i++)
-    {
-        if (ast_eq(env->kvs[i].key, k))
-            return env->kvs[i].value;
-    }
-
-    if (env->parent)
-        return get_in_env(env->parent, k);
-
-    return NULL;
-}
-
-AST *get_types(EnvKV *types, AST *e)
+AST *get_types(TypeKV *types, AST *e)
 {
     for (int i = 0; i < hmlen(types); i++)
     {
@@ -1643,23 +1622,24 @@ AST *c_transform_all(AST *from)
 
 ////////////////// Compile to C //////////////////////
 
-typedef struct CValue
+typedef struct EnvEntry
 {
-    void *value;
-    AST type;
-} CValue;
+    void *cvalue;
+    AST *symbol;
+    AST ast;
+} EnvEntry;
 
-typedef struct CEntry
+typedef struct EnvKV
 {
     char *key;
-    CValue value;
-} CEntry;
+    EnvEntry value;
+} EnvKV;
 
 typedef struct CCompilationState
 {
     String source;
     int indent;
-    CEntry *env;
+    EnvKV *env;
 } CCompilationState;
 
 void c_compile(CCompilationState *state, AST node);
@@ -1880,7 +1860,7 @@ void c_compile_defn(CCompilationState *state, AST node)
     }
     string(&state->source, "}\n");
 
-    shput(state->env, funname, ((CValue){.value = NULL, .type = *type}));
+    shput(state->env, funname, ((EnvEntry){.cvalue = NULL, .ast = node}));
 }
 
 void c_compile_funcall(CCompilationState *state, AST node)

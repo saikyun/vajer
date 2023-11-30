@@ -4,13 +4,13 @@
 
 MU_TEST(test_sdl_init)
 {
-    EnvKV *env = standard_environment();
+    TypeKV *env = standard_environment();
     eval(&env, slurp("lisp/sdl-test-structs.lisp"));
 }
 
 MU_TEST(test_spelsylt)
 {
-    EnvKV *env = standard_environment();
+    TypeKV *env = standard_environment();
     eval(&env, slurp("lisp/spelsylt.lisp"));
 }
 

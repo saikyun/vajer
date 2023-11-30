@@ -4,7 +4,7 @@
 
 MU_TEST(test_macro_list)
 {
-    EnvKV *env = standard_environment();
+    TypeKV *env = standard_environment();
     eval(&env, slurp("test/macro/list.lisp"));
 }
 

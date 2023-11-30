@@ -47,7 +47,7 @@ void print_source(char *code, AST *ast)
     }
 }
 
-void print_env(EnvKV *env)
+void print_env(TypeKV *env)
 {
     log("env with len %ld:\n", shlen(env));
     for (int i = 0; i < shlen(env); i++)
@@ -60,7 +60,7 @@ void print_env(EnvKV *env)
 
 typedef struct TypeNameState
 {
-    EnvKV *types;
+    TypeKV *types;
     int gensym;
 } TypeNameState;
 
@@ -84,7 +84,7 @@ char *gentypelul()
     return str;
 }
 
-AST *_generics_to_specific(TypeNameState *state, AST *t, EnvKV **generic_types)
+AST *_generics_to_specific(TypeNameState *state, AST *t, TypeKV **generic_types)
 {
     if (t->ast_type == AST_LIST)
     {
@@ -125,7 +125,7 @@ AST *_generics_to_specific(TypeNameState *state, AST *t, EnvKV **generic_types)
 
 AST *generics_to_specific(TypeNameState *state, AST *t)
 {
-    EnvKV *generic_types = NULL;
+    TypeKV *generic_types = NULL;
     return _generics_to_specific(state, t, &generic_types);
 }
 
@@ -292,15 +292,15 @@ void _assign_type_names(TypeNameState *state, AST *e)
     }
 }
 
-EnvKV *assign_type_names(AST *e, EnvKV *types)
+TypeKV *assign_type_names(AST *e, TypeKV *types)
 {
     TypeNameState state = {.types = types};
     _assign_type_names(&state, e);
     return state.types;
 }
 
-// TODO: change EnvKV to some sort of VajerEnv in which I can store other state as well
-EnvKV *assign_type_names_all(AST *exprs, EnvKV *types)
+// TODO: change TypeKV to some sort of VajerEnv in which I can store other state as well
+TypeKV *assign_type_names_all(AST *exprs, TypeKV *types)
 {
     TypeNameState state = {.types = types};
     for (int i = 0; i < arrlen(exprs); i++)
@@ -310,11 +310,11 @@ EnvKV *assign_type_names_all(AST *exprs, EnvKV *types)
     return state.types;
 }
 
-Constraint *generate_constraints(EnvKV *types, Constraint *constraints)
+Constraint *generate_constraints(TypeKV *types, Constraint *constraints)
 {
     for (int i = 0; i < hmlen(types); i++)
     {
-        EnvKV kv = types[i];
+        TypeKV kv = types[i];
         AST *e = kv.key;
         switch (e->ast_type)
         {
@@ -473,20 +473,20 @@ int is_var(AST *e)
     return e->ast_type == AST_SYMBOL && e->symbol[0] == '?';
 }
 
-int occurs_check(AST *x, AST *y, EnvKV **env)
+int occurs_check(AST *x, AST *y, TypeKV **env)
 {
     // TODO: implement :P
     return 0;
 }
 
-int unify(AST *x, AST *y, EnvKV **env);
+int unify(AST *x, AST *y, TypeKV **env);
 
 int is_has(AST *x)
 {
     return x->ast_type == AST_LIST && arrlen(x->list.elements) == 3 && x->list.elements[0].ast_type == AST_SYMBOL && strcmp(x->list.elements[0].symbol, ":has") == 0;
 }
 
-int unify_variable(AST *v, AST *x, EnvKV **env)
+int unify_variable(AST *v, AST *x, TypeKV **env)
 {
     sai_assert(is_var(v));
 
@@ -611,7 +611,7 @@ int unify_variable(AST *v, AST *x, EnvKV **env)
     }
 }
 
-int unify_maps(AST *x, AST *y, EnvKV **env)
+int unify_maps(AST *x, AST *y, TypeKV **env)
 {
     for (int i = 0; i < hmlen(x->map.kvs); i++)
     {
@@ -626,7 +626,7 @@ int unify_maps(AST *x, AST *y, EnvKV **env)
     return 1;
 }
 
-int unify(AST *x, AST *y, EnvKV **env)
+int unify(AST *x, AST *y, TypeKV **env)
 {
     if (ast_eq(x, y))
         return 1;
@@ -749,7 +749,7 @@ AST *infer_types_all(AST *nodes)
     return new_nodes;
 }
 
-AST *resolve_type(EnvKV **env, AST *type)
+AST *resolve_type(TypeKV **env, AST *type)
 {
     AST *resolved_type = type;
     // log("type before: ");
@@ -838,7 +838,7 @@ AST *resolve_type(EnvKV **env, AST *type)
     }
 }
 
-void ast_resolve_types(EnvKV **env, AST *ast)
+void ast_resolve_types(TypeKV **env, AST *ast)
 {
     if (ast->value_type != NULL)
     {
@@ -955,7 +955,7 @@ void ast_resolve_types(EnvKV **env, AST *ast)
     }
 }
 
-void ast_resolve_types_all(EnvKV **env, char *code, AST *ast)
+void ast_resolve_types_all(TypeKV **env, char *code, AST *ast)
 {
     int do_print = 0;
 
@@ -966,7 +966,7 @@ void ast_resolve_types_all(EnvKV **env, char *code, AST *ast)
 
     // log("\e[36m>>> env before assigning type names\e[0m\n");
     // print_env(env);
-    //  EnvKV *types = NULL;
+    //  TypeKV *types = NULL;
     *env = assign_type_names_all(ast, *env);
     if (do_print)
     {

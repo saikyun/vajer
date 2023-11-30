@@ -138,7 +138,7 @@ MU_TEST(test_transform_if)
     printf("\n");
     */
 
-    EnvKV *env = standard_environment();
+    TypeKV *env = standard_environment();
     c_ast(vajer_ast(&env, code));
 }
 
@@ -152,7 +152,7 @@ MU_TEST(test_transform_if_do)
     printf("\n");
     */
 
-    EnvKV *env = standard_environment();
+    TypeKV *env = standard_environment();
     c_ast(vajer_ast(&env, code));
 }
 
@@ -188,7 +188,7 @@ MU_TEST(test_compile_if)
 
     char *code = "(if (zero? n) 0 1)";
 
-    EnvKV *env = standard_environment();
+    TypeKV *env = standard_environment();
     AST *transformed_nodes = c_ast(vajer_ast(&env, code));
 
     c_compile_all(transformed_nodes);
@@ -234,7 +234,7 @@ MU_TEST(test_compile_defn)
                  "    1\n"
                  "    (* n (fac (- n 1)))))";
 
-    EnvKV *env = standard_environment();
+    TypeKV *env = standard_environment();
     AST *transformed_nodes = c_ast(vajer_ast(&env, code));
 
     char *source = c_compile_all(transformed_nodes)->source.str;
@@ -265,7 +265,7 @@ MU_TEST(test_compile_two_types)
         "  (+ num (strlen str))\n"
         ")";
 
-    EnvKV *env = standard_environment();
+    TypeKV *env = standard_environment();
     AST *transformed_nodes = c_ast(vajer_ast(&env, code));
     /*
     printf("\n");
@@ -315,7 +315,7 @@ MU_TEST(test_compile_while)
         "  res\n"
         ")";
 
-    EnvKV *env = standard_environment();
+    TypeKV *env = standard_environment();
     AST *transformed_nodes = c_ast(vajer_ast(&env, code));
 
     /*
@@ -359,14 +359,14 @@ MU_TEST(test_compile_set_if)
     char *code = slurp("lisp/set-if.lisp");
     // char *code = slurp("lisp/funcall-if.lisp");
 
-    EnvKV *env = standard_environment();
+    TypeKV *env = standard_environment();
     eval(&env, code);
 }
 
 MU_TEST(test_add_type_declare)
 {
     char *code = slurp("lisp/declare.lisp");
-    EnvKV *env = standard_environment();
+    TypeKV *env = standard_environment();
     AST *ast = c_ast(vajer_ast(&env, code));
 
     // result of lule should have type void
@@ -379,7 +379,7 @@ MU_TEST(test_add_type_declare)
 MU_TEST(test_add_type_list)
 {
     char *code = slurp("lisp/list.lisp");
-    EnvKV *env = standard_environment();
+    TypeKV *env = standard_environment();
     AST *ast = c_ast(vajer_ast(&env, code));
 
     /*
@@ -401,7 +401,7 @@ MU_TEST(test_add_type_list)
 MU_TEST(test_add_type_intermediate)
 {
     char *code = slurp("lisp/intermediate_types.lisp");
-    EnvKV *env = standard_environment();
+    TypeKV *env = standard_environment();
     AST *ast = c_ast(vajer_ast(&env, code));
 
     /*
@@ -424,7 +424,7 @@ MU_TEST(test_add_type_if)
     int do_print = 0;
 
     char *code = slurp("lisp/if.lisp");
-    EnvKV *env = standard_environment();
+    TypeKV *env = standard_environment();
     AST *ast = c_ast(vajer_ast(&env, code));
 
     if (do_print)
@@ -483,12 +483,12 @@ MU_TEST(test_add_type_if)
     }
 
     {
-        EnvKV *env = standard_environment();
+        TypeKV *env = standard_environment();
         compile_to_file(&env, code, "build/if.c");
     }
 
     {
-        EnvKV *env = standard_environment();
+        TypeKV *env = standard_environment();
         eval(&env, code);
     }
 }
