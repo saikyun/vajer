@@ -89,12 +89,12 @@ MU_TEST(test_assign_type_names)
 {
     {
         AST x = list4(symbol("+"), symbol("x"), symbol("x"), symbol("y"));
-        TypeKV *types = NULL;
-        types = assign_type_names(&x, types);
+        VajerEnv env = (VajerEnv){};
+        assign_type_names(&env, &x);
         AST plussym = symbol("+");
         AST xsym = symbol("x");
-        mu_assert(ast_eq(types[0].key, &plussym));
-        mu_assert(ast_eq(types[1].key, &xsym));
+        mu_assert(ast_eq(env.types[0].key, &plussym));
+        mu_assert(ast_eq(env.types[1].key, &xsym));
     }
 }
 
@@ -102,11 +102,11 @@ MU_TEST(test_generate_constraints)
 {
     {
         AST x = list4(symbol("+"), symbol("x"), symbol("x"), symbol("y"));
-        TypeKV *types = NULL;
-        types = assign_type_names(&x, types);
+        VajerEnv env = (VajerEnv){};
+        assign_type_names(&env, &x);
         // print_types(types);
         Constraint *constraints = NULL;
-        constraints = generate_constraints(types, constraints);
+        constraints = generate_constraints(&env, constraints);
 
         /*++
         for (int i = 0; i < arrlen(constraints); i++) {
@@ -127,16 +127,16 @@ MU_TEST(test_basic_inference)
 {
     {
         AST x = list4(symbol("+"), symbol("x"), symbol("x"), symbol("y"));
-        TypeKV *types = NULL;
-        types = assign_type_names(&x, types);
+        VajerEnv env = (VajerEnv){};
+        assign_type_names(&env, &x);
 
         Constraint *constraints = NULL;
-        constraints = generate_constraints(types, constraints);
+        constraints = generate_constraints(&env, constraints);
 
-        TypeKV *env = NULL;
+        TypeKV *types = NULL;
         for (int i = 0; i < arrlen(constraints); i++)
         {
-            int res = unify(&constraints[i].left, &constraints[i].right, &env);
+            int res = unify(&constraints[i].left, &constraints[i].right, &types);
             mu_assert(res);
         }
     }
@@ -145,13 +145,13 @@ MU_TEST(test_basic_inference)
         AST x = list3(symbol("do"),
                       list3(symbol("+"), symbol("x"), symbol("y")),
                       list3(symbol("+"), symbol("x"), (AST){.ast_type = AST_NUMBER, .number = 10}));
-        TypeKV *types = NULL;
-        types = assign_type_names(&x, types);
+        VajerEnv env = (VajerEnv){};
+        assign_type_names(&env, &x);
 
         // print_types(types);
 
         Constraint *constraints = NULL;
-        constraints = generate_constraints(types, constraints);
+        constraints = generate_constraints(&env, constraints);
 
         /*
         for (int i = 0; i < arrlen(constraints); i++)
@@ -162,10 +162,10 @@ MU_TEST(test_basic_inference)
         }
         */
 
-        TypeKV *env = NULL;
+        TypeKV *types = NULL;
         for (int i = 0; i < arrlen(constraints); i++)
         {
-            int res = unify(&constraints[i].left, &constraints[i].right, &env);
+            int res = unify(&constraints[i].left, &constraints[i].right, &types);
             mu_assert(res);
         }
         // print_env(env);
@@ -176,14 +176,14 @@ MU_TEST(test_basic_inference)
         Token *tokens = tokenize(code, strlen(code));
         AST *root_nodes = parse_all(code, tokens);
 
-        TypeKV *env = standard_environment();
+        VajerEnv env = (VajerEnv){};
         ast_resolve_types_all(&env, code, root_nodes);
         // print_env(env);
 
         AST *x = &root_nodes[0].list.elements[2].list.elements[0];
         AST new_type;
         // print_ast(x);
-        new_type = *resolve_type(&env, x->value_type);
+        new_type = *resolve_type(&env.types, x->value_type);
         x->value_type = &new_type;
         AST intsym = symbol(":int");
 
@@ -200,22 +200,24 @@ MU_TEST(test_basic_inference)
             hmput(env, new_symbol("+"), type);
         }
 
-        TypeKV *env2 = standard_environment();
-        AST *ast = vajer_ast(&env2, slurp("test/inference/basic.lisp"));
+        {
+            VajerEnv *env = standard_environment();
+            AST *ast = vajer_ast(env, slurp("test/inference/basic.lisp"));
 
-        AST *x = &ast[0].list.elements[2].list.elements[0];
-        AST *call = &ast[1];
-        AST intsym = symbol(":int");
-        mu_assert(ast_eq(x->value_type, &intsym));
-        mu_assert(ast_eq(call->value_type, &intsym));
+            AST *x = &ast[0].list.elements[2].list.elements[0];
+            AST *call = &ast[1];
+            AST intsym = symbol(":int");
+            mu_assert(ast_eq(x->value_type, &intsym));
+            mu_assert(ast_eq(call->value_type, &intsym));
+        }
     }
 }
 
 MU_TEST(test_infer_then_compile)
 {
     {
-        TypeKV *env = standard_environment();
-        AST *ast = vajer_ast(&env, slurp("test/inference/adder.lisp"));
+        VajerEnv *env = standard_environment();
+        AST *ast = vajer_ast(env, slurp("test/inference/adder.lisp"));
 
         AST *x = &ast[0].list.elements[2].list.elements[0];
         AST intsym = symbol(":int");
@@ -228,52 +230,52 @@ MU_TEST(test_infer_then_compile)
 MU_TEST(test_infer_var)
 {
     {
-        TypeKV *env = standard_environment();
-        AST *ast = vajer_ast(&env, slurp("test/inference/var.lisp"));
+        VajerEnv *env = standard_environment();
+        AST *ast = vajer_ast(env, slurp("test/inference/var.lisp"));
         c_transform_all(ast);
     }
 }
 
 MU_TEST(test_infer_malloc)
 {
-    TypeKV *env = standard_environment();
-    eval(&env, slurp("test/inference/malloc.lisp"));
+    VajerEnv *env = standard_environment();
+    eval(env, slurp("test/inference/malloc.lisp"));
 }
 
 MU_TEST(test_infer_defn_and_call)
 {
-    TypeKV *env = standard_environment();
-    eval(&env, slurp("test/inference/defn-and-call.lisp"));
+    VajerEnv *env = standard_environment();
+    eval(env, slurp("test/inference/defn-and-call.lisp"));
 }
 
 MU_TEST(test_infer_defn_void)
 {
-    TypeKV *env = standard_environment();
-    eval(&env, slurp("test/inference/defn-void.lisp"));
+    VajerEnv *env = standard_environment();
+    eval(env, slurp("test/inference/defn-void.lisp"));
 }
 
 MU_TEST(test_infer_same_symbol)
 {
-    TypeKV *env = standard_environment();
-    eval(&env, slurp("test/inference/same-symbol.lisp"));
+    VajerEnv *env = standard_environment();
+    eval(env, slurp("test/inference/same-symbol.lisp"));
 }
 
 MU_TEST(test_infer_struct)
 {
-    TypeKV *env = standard_environment();
-    eval(&env, slurp("test/inference/struct.lisp"));
+    VajerEnv *env = standard_environment();
+    eval(env, slurp("test/inference/struct.lisp"));
 }
 
 MU_TEST(test_infer_bigger_struct)
 {
-    TypeKV *env = standard_environment();
-    eval(&env, slurp("test/inference/bigger-struct.lisp"));
+    VajerEnv *env = standard_environment();
+    eval(env, slurp("test/inference/bigger-struct.lisp"));
 }
 
 MU_TEST(test_infer_get)
 {
-    TypeKV *env = standard_environment();
-    eval(&env, slurp("test/inference/get.lisp"));
+    VajerEnv *env = standard_environment();
+    eval(env, slurp("test/inference/get.lisp"));
 }
 
 MU_TEST_SUITE(test_suite_inference)

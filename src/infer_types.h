@@ -47,29 +47,42 @@ void print_source(char *code, AST *ast)
     }
 }
 
-void print_env(TypeKV *env)
+void print_types(TypeKV *types)
 {
-    log("env with len %ld:\n", shlen(env));
-    for (int i = 0; i < shlen(env); i++)
+    log("types with len %ld:\n", shlen(types));
+    for (int i = 0; i < shlen(types); i++)
     {
-        prin_ast(env[i].key);
+        prin_ast(types[i].key);
         prn("\t");
-        print_ast(env[i].value);
+        print_ast(types[i].value);
     }
 }
 
-typedef struct TypeNameState
+void print_values(EnvKV *values)
 {
-    TypeKV *types;
-    int gensym;
-} TypeNameState;
+    log("values with len %ld:\n", shlen(values));
+    for (int i = 0; i < shlen(values); i++)
+    {
+        printf("%s", values[i].key);
+        prn("\t");
+        prn("symbol: %s\n", values[i].value.symbol->symbol);
+        print_ast(&values[i].value.ast);
+        prn("ptr: %p\n\n", values[i].value.cvalue);
+    }
+}
 
-char *gentype(TypeNameState *state)
+void print_env(VajerEnv *env)
 {
-    int len = snprintf(NULL, 0, "%d", state->gensym) + 2 + 1;
+    print_types(env->types);
+    print_values(env->values);
+}
+
+char *gentype(VajerEnv *env)
+{
+    int len = snprintf(NULL, 0, "%d", env->gensym) + 2 + 1;
     char *str = malloc(len * sizeof(char));
-    snprintf(str, len, "?t%d", state->gensym);
-    state->gensym++;
+    snprintf(str, len, "?t%d", env->gensym);
+    env->gensym++;
     return str;
 }
 
@@ -84,7 +97,7 @@ char *gentypelul()
     return str;
 }
 
-AST *_generics_to_specific(TypeNameState *state, AST *t, TypeKV **generic_types)
+AST *_generics_to_specific(VajerEnv *env, AST *t, TypeKV **generic_types)
 {
     if (t->ast_type == AST_LIST)
     {
@@ -105,14 +118,14 @@ AST *_generics_to_specific(TypeNameState *state, AST *t, TypeKV **generic_types)
                 }
                 else
                 {
-                    AST *new_sym = new_symbol(gentype(state));
+                    AST *new_sym = new_symbol(gentype(env));
                     hmput(*generic_types, type, new_sym);
                     arrpush(new_t->list.elements, *new_sym);
                 }
             }
             else
             {
-                arrpush(new_t->list.elements, *_generics_to_specific(state, type, generic_types));
+                arrpush(new_t->list.elements, *_generics_to_specific(env, type, generic_types));
             }
         }
         return new_t;
@@ -123,10 +136,10 @@ AST *_generics_to_specific(TypeNameState *state, AST *t, TypeKV **generic_types)
     }
 }
 
-AST *generics_to_specific(TypeNameState *state, AST *t)
+AST *generics_to_specific(VajerEnv *env, AST *t)
 {
     TypeKV *generic_types = NULL;
-    return _generics_to_specific(state, t, &generic_types);
+    return _generics_to_specific(env, t, &generic_types);
 }
 
 // this is where all structs are stored
@@ -134,7 +147,7 @@ AST STRUCT_KEY = (AST){.ast_type = AST_SYMBOL, .symbol = "__structs"};
 
 // assigns type names for unknown types
 // assigns concrete types like :int for numbers, [:char] for string
-void _assign_type_names(TypeNameState *state, AST *e)
+void assign_type_names(VajerEnv *env, AST *e)
 {
     switch (e->ast_type)
     {
@@ -145,13 +158,13 @@ void _assign_type_names(TypeNameState *state, AST *e)
         {
             AST *type = &list[2];
             list[1].value_type = type;
-            hmput(state->types, &list[1], type);
+            hmput(env->types, &list[1], type);
         }
         else if (arrlen(list) > 0 && list[0].ast_type == AST_SYMBOL && strcmp(list[0].symbol, "declare-var") == 0)
         {
             AST *type = &list[2];
             list[1].value_type = type;
-            hmput(state->types, &list[1], type);
+            hmput(env->types, &list[1], type);
         }
         else if (arrlen(list) > 0 && list[0].ast_type == AST_SYMBOL && strcmp(list[0].symbol, "defstruct") == 0)
         {
@@ -165,7 +178,7 @@ void _assign_type_names(TypeNameState *state, AST *e)
 
             AST *new_name_ast = new_symbol(new_name.str);
 
-            AST *structs = hmget(state->types, &STRUCT_KEY);
+            AST *structs = hmget(env->types, &STRUCT_KEY);
 
             hmput(structs->map.kvs, *new_name_ast, *map);
 
@@ -182,26 +195,10 @@ void _assign_type_names(TypeNameState *state, AST *e)
 
             arrpush(els, *new_name_ast);
 
-            hmput(state->types, new_name_ast, map);
+            hmput(env->types, new_name_ast, map);
             name->value_type = new_list(type);
-            hmput(state->types, name, name->value_type);
+            hmput(env->types, name, name->value_type);
         }
-        /*
-        else if (arrlen(list) > 0 && list[0].ast_type == AST_SYMBOL && strcmp(list[0].symbol, "get") == 0)
-        {
-            for (int i = 1; i < arrlen(list); i++)
-            {
-                _assign_type_names(state, &list[i]);
-            }
-            e->value_type = new_list(list3(symbol("in"), *list[1].value_type, list[2]));
-            log("huh: ");
-            print_ast(list[1].value_type);
-            log("huh: ");
-            print_ast(&list[2]);
-            print_ast(e);
-            hmput(state->types, e, e->value_type);
-        }
-        */
         else if (arrlen(list) > 0 && list[0].ast_type == AST_SYMBOL && strcmp(list[0].symbol, "cast") == 0)
         {
             AST *type = &list[1];
@@ -214,7 +211,7 @@ void _assign_type_names(TypeNameState *state, AST *e)
                 {
                     for (int i = 1; i < arrlen(value->list.elements); i++)
                     {
-                        _assign_type_names(state, &value->list.elements[i]);
+                        assign_type_names(env, &value->list.elements[i]);
                     }
                 }
                 // vector
@@ -222,7 +219,7 @@ void _assign_type_names(TypeNameState *state, AST *e)
                 {
                     for (int i = 0; i < arrlen(value->list.elements); i++)
                     {
-                        _assign_type_names(state, &value->list.elements[i]);
+                        assign_type_names(env, &value->list.elements[i]);
                     }
                 }
             }
@@ -230,20 +227,20 @@ void _assign_type_names(TypeNameState *state, AST *e)
             {
                 for (int i = 0; i < hmlen(value->map.kvs); i++)
                 {
-                    _assign_type_names(state, &value->map.kvs[i].value);
+                    assign_type_names(env, &value->map.kvs[i].value);
                 }
             }
 
-            hmput(state->types, e, type);
+            hmput(env->types, e, type);
         }
         else
         {
             for (int i = 0; i < arrlen(e->list.elements); i++)
             {
-                _assign_type_names(state, &e->list.elements[i]);
+                assign_type_names(env, &e->list.elements[i]);
             }
-            e->value_type = new_symbol(gentype(state));
-            hmput(state->types, e, e->value_type);
+            e->value_type = new_symbol(gentype(env));
+            hmput(env->types, e, e->value_type);
         }
         break;
     }
@@ -251,38 +248,38 @@ void _assign_type_names(TypeNameState *state, AST *e)
     {
         for (int i = 0; i < hmlen(e->map.kvs); i++)
         {
-            _assign_type_names(state, &e->map.kvs[i].value);
+            assign_type_names(env, &e->map.kvs[i].value);
         }
 
         e->value_type = new_map(map1(e->map.kvs[0].key, *e->map.kvs[0].value.value_type));
-        hmput(state->types, e, e->value_type);
+        hmput(env->types, e, e->value_type);
 
         break;
     }
     case AST_SYMBOL:
-        if (!in_types(state->types, e))
+        if (!in_types(env->types, e))
         {
-            AST *type = new_symbol(gentype(state));
+            AST *type = new_symbol(gentype(env));
             e->value_type = type;
-            hmput(state->types, e, type);
+            hmput(env->types, e, type);
         }
         else
         {
-            AST *t = get_types(state->types, e);
-            e->value_type = generics_to_specific(state, t);
+            AST *t = get_types(env->types, e);
+            e->value_type = generics_to_specific(env, t);
         }
         break;
     case AST_NUMBER:
-        if (!in_types(state->types, e))
-            hmput(state->types, e, &value_type_int);
+        if (!in_types(env->types, e))
+            hmput(env->types, e, &value_type_int);
         break;
     case AST_STRING:
-        if (!in_types(state->types, e))
-            hmput(state->types, e, value_type_string());
+        if (!in_types(env->types, e))
+            hmput(env->types, e, value_type_string());
         break;
     case AST_BOOLEAN:
-        if (!in_types(state->types, e))
-            hmput(state->types, e, &value_type_boolean);
+        if (!in_types(env->types, e))
+            hmput(env->types, e, &value_type_boolean);
         break;
     default:
         log("unhandled ast for assign_type_names: ");
@@ -292,29 +289,19 @@ void _assign_type_names(TypeNameState *state, AST *e)
     }
 }
 
-TypeKV *assign_type_names(AST *e, TypeKV *types)
+void assign_type_names_all(VajerEnv *env, AST *exprs)
 {
-    TypeNameState state = {.types = types};
-    _assign_type_names(&state, e);
-    return state.types;
-}
-
-// TODO: change TypeKV to some sort of VajerEnv in which I can store other state as well
-TypeKV *assign_type_names_all(AST *exprs, TypeKV *types)
-{
-    TypeNameState state = {.types = types};
     for (int i = 0; i < arrlen(exprs); i++)
     {
-        _assign_type_names(&state, &exprs[i]);
+        assign_type_names(env, &exprs[i]);
     }
-    return state.types;
 }
 
-Constraint *generate_constraints(TypeKV *types, Constraint *constraints)
+Constraint *generate_constraints(VajerEnv *env, Constraint *constraints)
 {
-    for (int i = 0; i < hmlen(types); i++)
+    for (int i = 0; i < hmlen(env->types); i++)
     {
-        TypeKV kv = types[i];
+        TypeKV kv = env->types[i];
         AST *e = kv.key;
         switch (e->ast_type)
         {
@@ -335,7 +322,7 @@ Constraint *generate_constraints(TypeKV *types, Constraint *constraints)
                 if (strcmp(f, "do") == 0)
                 {
                     AST *ret_type = kv.value;
-                    AST *last_type = get_types(types, &arrlast(list));
+                    AST *last_type = get_types(env->types, &arrlast(list));
 
                     arrpush(constraints, ((Constraint){*ret_type, *last_type, e, &arrlast(list)}));
                 }
@@ -344,7 +331,7 @@ Constraint *generate_constraints(TypeKV *types, Constraint *constraints)
                     AST map = list[1];
                     AST key = list[2];
 
-                    arrpush(constraints, ((Constraint){*get_types(types, &map), map1(key, *kv.value), &list[1], e}));
+                    arrpush(constraints, ((Constraint){*get_types(env->types, &map), map1(key, *kv.value), &list[1], e}));
                 }
                 else if (strcmp(f, ":=") == 0)
                 {
@@ -352,46 +339,28 @@ Constraint *generate_constraints(TypeKV *types, Constraint *constraints)
                     AST key = list[2];
                     AST value = list[3];
 
-                    arrpush(constraints, ((Constraint){*get_types(types, &map), map1(key, *kv.value), &map, e}));
+                    arrpush(constraints, ((Constraint){*get_types(env->types, &map), map1(key, *kv.value), &map, e}));
 
-                    arrpush(constraints, ((Constraint){*kv.value, *get_types(types, &value), kv.key, &value}));
-                } /*
-                 else if (strcmp(f, "in") == 0)
-                 {
-                     AST *list_type = (AST *)malloc(sizeof(AST));
-                     *list_type = list1(*kv.value);
-                     list_type->list.type = LIST_BRACKETS;
-                     AST *elem_type = get_types(types, &list[1]);
-
-                     arrpush(constraints, ((Constraint){*list_type, *elem_type}));
-                 }
-                 else if (strcmp(f, "var") == 0)
-                 {
-                     AST *sym_type = get_types(types, &list[1]);
-                     AST *value_type = get_types(types, &list[2]);
-                     arrpush(constraints, ((Constraint){*sym_type, *value_type}));
-                 }*/
+                    arrpush(constraints, ((Constraint){*kv.value, *get_types(env->types, &value), kv.key, &value}));
+                }
                 else if (strcmp(f, "if") == 0)
                 {
                     AST *ret_type = kv.value;
                     {
-                        AST *branch_type = get_types(types, &list[2]);
+                        AST *branch_type = get_types(env->types, &list[2]);
                         arrpush(constraints, ((Constraint){*ret_type, *branch_type, e, &list[2]}));
                     }
 
                     if (arrlen(list) > 3)
                     {
                         {
-                            AST *branch_type = get_types(types, &list[3]);
+                            AST *branch_type = get_types(env->types, &list[3]);
                             arrpush(constraints, ((Constraint){*ret_type, *branch_type, e, &list[3]}));
                         }
                     }
                 }
                 else if (strcmp(f, "cast") == 0)
                 {
-                    // AST *branch_type = get_types(types, &list[2]);
-                    // AST *cast_type = &list[1];
-                    // arrpush(constraints, ((Constraint){*cast_type, *branch_type}));
                 }
                 else if (strcmp(f, "defn") == 0)
                 {
@@ -403,7 +372,7 @@ Constraint *generate_constraints(TypeKV *types, Constraint *constraints)
                     for (int i = 0; i < arrlen(args); i++)
                     {
                         AST arg = args[i];
-                        AST *arg_type = get_types(types, &arg);
+                        AST *arg_type = get_types(env->types, &arg);
                         arrpush(func_constraint.list.elements, *arg_type);
                     }
 
@@ -417,14 +386,14 @@ Constraint *generate_constraints(TypeKV *types, Constraint *constraints)
                     }
                     else
                     {
-                        last_type = get_types(types, &arrlast(list));
+                        last_type = get_types(env->types, &arrlast(list));
                     }
 
                     sai_assert(last_type);
 
                     arrpush(func_constraint.list.elements, *last_type);
 
-                    AST *f_type = get_types(types, &list[1]);
+                    AST *f_type = get_types(env->types, &list[1]);
 
                     arrpush(constraints, ((Constraint){*f_type, func_constraint, &list[1], e}));
                 }
@@ -436,7 +405,7 @@ Constraint *generate_constraints(TypeKV *types, Constraint *constraints)
 
                     for (int i = 1; i < arrlen(list); i++)
                     {
-                        arrpush(f_call.list.elements, *get_types(types, &list[i]));
+                        arrpush(f_call.list.elements, *get_types(env->types, &list[i]));
                     }
 
                     arrpush(f_call.list.elements, symbol("->"));
@@ -492,24 +461,6 @@ int unify_variable(AST *v, AST *x, TypeKV **env)
 
     if (x->ast_type == AST_MAP)
     {
-        /*
-        AST *sym = new_symbol(gentypelul());
-
-        AST *structs = hmget(*env, &STRUCT_KEY);
-
-        if (!get_in_map(structs->map.kvs, sym))
-        {
-            hmput(structs->map.kvs, *sym, ((AST){.ast_type = AST_MAP, .map = (Map){}}));
-        }
-
-        AST *collected_types = get_in_map(structs->map.kvs, sym);
-
-        if (!get_in_map(collected_types->map.kvs, x))
-        {
-            hmput(collected_types->map.kvs, *x, *x);
-        }
-        */
-
         if (!in_types(*env, v))
         {
             hmput(*env, v, new_map((AST){.ast_type = AST_MAP, .map = (Map){}}));
@@ -955,29 +906,29 @@ void ast_resolve_types(TypeKV **env, AST *ast)
     }
 }
 
-void ast_resolve_types_all(TypeKV **env, char *code, AST *ast)
+void ast_resolve_types_all(VajerEnv *env, char *code, AST *ast)
 {
     int do_print = 0;
 
-    if (hmgeti(*env, &STRUCT_KEY) == -1)
+    if (hmgeti(env->types, &STRUCT_KEY) == -1)
     {
-        hmput(*env, &STRUCT_KEY, new_map((AST){.ast_type = AST_MAP, .map = (Map){}}));
+        hmput(env->types, &STRUCT_KEY, new_map((AST){.ast_type = AST_MAP, .map = (Map){}}));
     }
 
     // log("\e[36m>>> env before assigning type names\e[0m\n");
     // print_env(env);
     //  TypeKV *types = NULL;
-    *env = assign_type_names_all(ast, *env);
+    assign_type_names_all(env, ast);
     if (do_print)
     {
         log("\n\e[41m>>> env after assigning type names\e[0m\n");
-        print_env(*env);
+        print_env(env);
     }
 
     Constraint *constraints = NULL;
-    constraints = generate_constraints(*env, constraints);
+    constraints = generate_constraints(env, constraints);
 
-    sai_assert(shlen(*env) > 0);
+    sai_assert(shlen(env->types) > 0);
     if (do_print)
     {
         log("\n\e[42m>>> constraints\e[0m\n");
@@ -991,7 +942,7 @@ void ast_resolve_types_all(TypeKV **env, char *code, AST *ast)
             prn(" = ");
             print_ast(&constraints[i].right);
         }
-        int res = unify(&constraints[i].left, &constraints[i].right, env);
+        int res = unify(&constraints[i].left, &constraints[i].right, &env->types);
         if (!res)
         {
             if (constraints[i].left_expr && constraints[i].right_expr)
@@ -1011,21 +962,21 @@ void ast_resolve_types_all(TypeKV **env, char *code, AST *ast)
     {
         prn("\n");
         log(">> \e[35menv before resolution\e[0m\n");
-        print_env(*env);
+        print_env(env);
         prn("\n\n");
     }
 
     for (int i = 0; i < arrlen(ast); i++)
     {
-        ast_resolve_types(env, &ast[i]);
+        ast_resolve_types(&env->types, &ast[i]);
     }
 
-    sai_assert(shlen(*env) > 0);
+    sai_assert(shlen(env->types) > 0);
 
     // purge ?t from env???
-    for (int i = hmlen(*env) - 1; i >= 0; i--)
+    for (int i = hmlen(env->types) - 1; i >= 0; i--)
     {
-        if (is_var((*env)[i].key))
+        if (is_var((env->types)[i].key))
         {
             // hmdel(*env, (*env)[i].key);
         }

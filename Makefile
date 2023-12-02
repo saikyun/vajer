@@ -7,6 +7,9 @@ LIBS=-Llib/tinycc -ltcc -L/usr/local/lib -lSDL2
 experiment: FORCE
 	./lib/tinycc/tcc -bt10 -DCOMPILED_WITH_TCC $(INCLUDES) -I. -Isrc $(LIBS) $(CFLAGS) -run experiments/repl.c
 
+build-thing: FORCE
+	./lib/tinycc/tcc -bt10 -DCOMPILED_WITH_TCC $(INCLUDES) -I. -Isrc $(LIBS) $(CFLAGS) -run build/eval_ast?t114.c
+
 test: FORCE
 # experiment
 #	./lib/tinycc/tcc -bt10 -DCOMPILED_WITH_TCC $(INCLUDES) -I. $(LIBS) $(CFLAGS) -run experiments/prototype.c

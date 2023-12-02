@@ -431,6 +431,8 @@ void print_indent(int indent)
     }
 }
 
+int AST_PRINT_TYPES = 1;
+
 void _print_ast(PrintASTState *state, AST *el)
 {
     switch (el->ast_type)
@@ -623,7 +625,7 @@ void _print_ast(PrintASTState *state, AST *el)
         sai_assert(0);
     }
 
-    if (el->value_type != NULL)
+    if (AST_PRINT_TYPES && el->value_type != NULL)
     {
         prn("%s", ansi_blue);
         _print_ast(state, el->value_type);
@@ -1635,6 +1637,17 @@ typedef struct EnvKV
     EnvEntry value;
 } EnvKV;
 
+typedef struct VajerEnv
+{
+    TypeKV *types;
+    EnvKV *values;
+    int gensym;
+
+    // TODO: these forms should be in VajerEnv
+    // because you need to compile the remaining forms :)
+    AST *forms_to_compile;
+} VajerEnv;
+
 typedef struct CCompilationState
 {
     String source;
@@ -1860,7 +1873,7 @@ void c_compile_defn(CCompilationState *state, AST node)
     }
     string(&state->source, "}\n");
 
-    shput(state->env, funname, ((EnvEntry){.cvalue = NULL, .ast = node}));
+    shput(state->env, funname, ((EnvEntry){.cvalue = NULL, .ast = node, .symbol = &node.list.elements[1]}));
 }
 
 void c_compile_funcall(CCompilationState *state, AST node)
