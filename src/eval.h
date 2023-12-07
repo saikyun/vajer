@@ -568,19 +568,32 @@ CCompilationState *compile_to_file(VajerEnv *env, char *code, char *path)
 
 void eval_ast(VajerEnv *env, AST *ast)
 {
-    log("eval ast");
+    prn("\n");
+    log("\n\e[33m>>> eval ast\e[0m\n");
 
-    AST_PRINT_TYPES = 0;
+    AST_PRINT_TYPES = 1;
     for (int i = 0; i < arrlen(ast); i++)
     {
         print_ast(&ast[i]);
+        prn("\n");
+    }
+
+    // resolve_types(env, env->forms_to_compile, "");
+
+    prn("\e[34m>>> forms_to_compile\e[0m\n");
+
+    for (int i = 0; i < arrlen(env->forms_to_compile); i++)
+    {
+        print_ast(&env->forms_to_compile[i]);
         prn("\n");
     }
     AST_PRINT_TYPES = 1;
 
     int do_print = 1;
 
-    CCompilationState *res = c_compile_all(c_ast(ast));
+    CCompilationState *res = c_compile_all(c_ast(env->forms_to_compile));
+
+    arrfree(env->forms_to_compile);
     // CCompilationState *res = compile_ast_to_file(ast, "build/evaled.c");
 
     TCCState *s = tcc_new();
@@ -602,6 +615,7 @@ void eval_ast(VajerEnv *env, AST *ast)
         for (int i = 0; i < shlen(res->env); i++)
         {
             prn("%s\n", res->env[i].key);
+            print_ast(&res->env[i].value.ast);
         }
     }
 
@@ -619,6 +633,16 @@ void eval_ast(VajerEnv *env, AST *ast)
         {
             prn("+ %s\t", env->values[i].key);
             print_ast(type);
+        }
+
+        // TODO: not sure this should be needed, feels like `get_types` should already return this :o
+        type = resolve_type(&env->types, type);
+
+        if (type->ast_type != AST_LIST)
+        {
+            log("\e[31mwhat should be a function type is not:\e[0m ");
+            print_ast(type);
+            sai_assert(0);
         }
 
         type_to_string(&str, arrlast(type->list.elements));

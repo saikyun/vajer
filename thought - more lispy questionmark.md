@@ -233,3 +233,9 @@ Maybe I can then later implement the subset or something. It just made my brain 
 
 Started to refactor from `CEntry` and `EnvKV` (the latter is now `TypeKV`) to `VajerEnv`.
 Just got to continue hitting M-T (which runs `make test`) and fix compilation errors.
+
+---
+
+Stuff works! `test/test_eval.h` is the beginning of eval'ing multiple forms. :) Just need to keep at it.
+
+Test more forms.

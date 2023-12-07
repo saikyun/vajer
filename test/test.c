@@ -5,6 +5,7 @@
 #include "test_tcc.h"
 #include "test_parser.h"
 #include "inference/test_inference.h"
+#include "test_eval.h"
 #include "macro/test_macro.h"
 #include "test_sdl.h"
 
@@ -36,15 +37,19 @@ int main(int argc, char **argv)
     init_sig_handler(argv[0]);
 #endif
 #endif
-    VajerEnv *env = standard_environment();
-    eval(env, slurp("test/macro/list.lisp"));
-    int do_test = 1;
+    // VajerEnv *env = standard_environment();
+    // eval(env, slurp("test/macro/list.lisp"));
+
+    MU_RUN_SUITE(test_eval);
+
+    int do_test = 0;
 
     if (do_test)
     {
         MU_RUN_SUITE(tcc_suite);
         MU_RUN_SUITE(lisp_suite);
         MU_RUN_SUITE(test_suite_inference);
+        MU_RUN_SUITE(test_eval);
         MU_RUN_SUITE(test_macro);
         MU_RUN_SUITE(test_sdl_suite);
     }
