@@ -369,6 +369,31 @@ typedef struct TypeKV
     AST *value;
 } TypeKV;
 
+typedef struct EnvEntry
+{
+    void *cvalue;
+    AST *symbol;
+    AST ast;
+} EnvEntry;
+
+typedef struct EnvKV
+{
+    char *key;
+    EnvEntry value;
+} EnvKV;
+
+typedef struct VajerEnv
+{
+    TypeKV *types;
+    EnvKV *values;
+    int gensym;
+
+    AST *forms_to_compile;
+
+    // TODO: not sure if this should be separate, probably should be in types or values
+    TypeKV *macros;
+} VajerEnv;
+
 typedef struct ParseState
 {
     const char *code;
@@ -1099,38 +1124,32 @@ AST *get_types(TypeKV *types, AST *e)
 
 ////////////////// Transform to C //////////////////////
 
-typedef struct CTransformState
-{
-    int last_prepend_pos;
-    int gensym;
-} CTransformState;
-
 typedef struct SymAST
 {
     char *sym;
     AST ast;
 } SymAST;
 
-char *gensym(CTransformState *state)
+char *gensym(VajerEnv *env)
 {
-    int len = snprintf(NULL, 0, "%d", state->gensym) + 6 + 1;
+    int len = snprintf(NULL, 0, "%d", env->gensym) + 6 + 1;
     char *str = malloc(len * sizeof(char));
-    snprintf(str, len, "gensym%d", state->gensym);
-    state->gensym++;
+    snprintf(str, len, "gensym%d", env->gensym);
+    env->gensym++;
     return str;
 }
 
-SymAST transform(CTransformState *state, AST *node);
+SymAST transform(VajerEnv *env, AST *node);
 
-SymAST transform_if(CTransformState *state, AST *node)
+SymAST transform_if(VajerEnv *env, AST *node)
 {
-    char *sym = gensym(state);
+    char *sym = gensym(env);
     AST do_block = list1(symbol("upscope"));
 
     sai_assert(node->value_type);
     int returns_void = ast_eq(node->value_type, &value_type_void);
 
-    SymAST cond = transform(state, &node->list.elements[1]);
+    SymAST cond = transform(env, &node->list.elements[1]);
     if (cond.sym != NULL)
     {
         arrpush(do_block.list.elements,
@@ -1147,7 +1166,7 @@ SymAST transform_if(CTransformState *state, AST *node)
     AST *return_type = node->list.elements[2].value_type;
 
     {
-        SymAST branch = transform(state, &node->list.elements[2]);
+        SymAST branch = transform(env, &node->list.elements[2]);
         if (branch
                 .ast.value_type == NULL)
         {
@@ -1179,7 +1198,7 @@ SymAST transform_if(CTransformState *state, AST *node)
     {
 
         {
-            SymAST branch = transform(state, &node->list.elements[3]);
+            SymAST branch = transform(env, &node->list.elements[3]);
             if (branch.ast.value_type == NULL)
             {
                 log("missing type: %d\n", branch.ast.ast_type);
@@ -1217,9 +1236,9 @@ SymAST transform_if(CTransformState *state, AST *node)
     return (SymAST){.sym = returns_void ? NULL : sym, .ast = do_block};
 }
 
-SymAST transform_do(CTransformState *state, AST *node)
+SymAST transform_do(VajerEnv *env, AST *node)
 {
-    char *sym = gensym(state);
+    char *sym = gensym(env);
 
     int returns_void = ast_eq(node->value_type, &value_type_void);
 
@@ -1228,7 +1247,7 @@ SymAST transform_do(CTransformState *state, AST *node)
 
     for (int i = 1; i < arrlen(node->list.elements); i++)
     {
-        SymAST arg = transform(state, &node->list.elements[i]);
+        SymAST arg = transform(env, &node->list.elements[i]);
 
         if (arg.sym == NULL)
         {
@@ -1252,7 +1271,7 @@ SymAST transform_do(CTransformState *state, AST *node)
     return (SymAST){.sym = returns_void ? NULL : sym, .ast = new_do};
 }
 
-SymAST transform_while(CTransformState *state, AST *node)
+SymAST transform_while(VajerEnv *env, AST *node)
 {
     AST new_while = list2(
         node->list.elements[0],
@@ -1260,7 +1279,7 @@ SymAST transform_while(CTransformState *state, AST *node)
 
     for (int i = 2; i < arrlen(node->list.elements); i++)
     {
-        SymAST child = transform(state, &node->list.elements[i]);
+        SymAST child = transform(env, &node->list.elements[i]);
 
         if (child.sym == NULL)
         {
@@ -1279,11 +1298,11 @@ SymAST transform_while(CTransformState *state, AST *node)
     return (SymAST){.sym = NULL, .ast = new_while};
 }
 
-SymAST transform_var(CTransformState *state, AST *node)
+SymAST transform_var(VajerEnv *env, AST *node)
 {
     if (arrlen(node->list.elements) > 2)
     {
-        SymAST value = transform(state, &node->list.elements[2]);
+        SymAST value = transform(env, &node->list.elements[2]);
 
         if (value.ast.value_type == NULL)
         {
@@ -1317,11 +1336,11 @@ SymAST transform_var(CTransformState *state, AST *node)
     }
 }
 
-SymAST transform_set(CTransformState *state, AST *node)
+SymAST transform_set(VajerEnv *env, AST *node)
 {
     sai_assert(arrlen(node->list.elements) == 3);
 
-    SymAST value = transform(state, &node->list.elements[2]);
+    SymAST value = transform(env, &node->list.elements[2]);
 
     if (value.sym == NULL)
     {
@@ -1340,11 +1359,11 @@ SymAST transform_set(CTransformState *state, AST *node)
     }
 }
 
-SymAST transform_put(CTransformState *state, AST *node)
+SymAST transform_put(VajerEnv *env, AST *node)
 {
     sai_assert(arrlen(node->list.elements) == 4);
 
-    SymAST value = transform(state, &node->list.elements[3]);
+    SymAST value = transform(env, &node->list.elements[3]);
 
     if (value.sym == NULL)
     {
@@ -1363,11 +1382,11 @@ SymAST transform_put(CTransformState *state, AST *node)
     }
 }
 
-SymAST transform_insert(CTransformState *state, AST *node)
+SymAST transform_insert(VajerEnv *env, AST *node)
 {
     sai_assert(arrlen(node->list.elements) == 4);
 
-    SymAST value = transform(state, &node->list.elements[3]);
+    SymAST value = transform(env, &node->list.elements[3]);
 
     if (value.sym == NULL)
     {
@@ -1390,9 +1409,9 @@ SymAST transform_insert(CTransformState *state, AST *node)
     }
 }
 
-SymAST transform_funcall(CTransformState *state, AST *node)
+SymAST transform_funcall(VajerEnv *env, AST *node)
 {
-    char *sym = gensym(state);
+    char *sym = gensym(env);
 
     if (node->value_type == NULL)
     {
@@ -1413,7 +1432,7 @@ SymAST transform_funcall(CTransformState *state, AST *node)
 
     for (int i = 1; i < arrlen(node->list.elements); i++)
     {
-        SymAST arg = transform(state, &node->list.elements[i]);
+        SymAST arg = transform(env, &node->list.elements[i]);
 
         if (arg.sym == NULL)
         {
@@ -1444,11 +1463,11 @@ SymAST transform_funcall(CTransformState *state, AST *node)
     return (SymAST){.sym = returns_void ? NULL : sym, .ast = upscope};
 }
 
-SymAST transform_defn(CTransformState *state, AST *node)
+SymAST transform_defn(VajerEnv *env, AST *node)
 {
     int is_void = ast_eq(ast_last(node->list.elements[1].value_type), &value_type_void);
 
-    AST new_defn = list2(node->list.elements[0], transform(state, &node->list.elements[1]).ast);
+    AST new_defn = list2(node->list.elements[0], transform(env, &node->list.elements[1]).ast);
 
     AST *args = node->list.elements[2].list.elements;
     AST *new_args = NULL;
@@ -1462,7 +1481,7 @@ SymAST transform_defn(CTransformState *state, AST *node)
 
     for (int i = 2; i < arrlen(node->list.elements); i++)
     {
-        SymAST res = transform(state, &node->list.elements[i]);
+        SymAST res = transform(env, &node->list.elements[i]);
 
         if (res.sym == NULL)
         {
@@ -1495,7 +1514,7 @@ SymAST transform_defn(CTransformState *state, AST *node)
     return (SymAST){.sym = new_defn.list.elements[1].symbol, .ast = new_defn};
 }
 
-SymAST transform_list(CTransformState *state, AST *node)
+SymAST transform_list(VajerEnv *env, AST *node)
 {
     switch (node->list.type)
     {
@@ -1505,11 +1524,11 @@ SymAST transform_list(CTransformState *state, AST *node)
         sai_assert(head.ast_type == AST_SYMBOL);
         if (strcmp(head.symbol, "if") == 0)
         {
-            return transform_if(state, node);
+            return transform_if(env, node);
         }
         else if (strcmp(head.symbol, "do") == 0)
         {
-            return transform_do(state, node);
+            return transform_do(env, node);
         }
         else if (strcmp(head.symbol, "defmacro") == 0)
         {
@@ -1517,19 +1536,19 @@ SymAST transform_list(CTransformState *state, AST *node)
         }
         else if (strcmp(head.symbol, "var") == 0)
         {
-            return transform_var(state, node);
+            return transform_var(env, node);
         }
         else if (strcmp(head.symbol, "set") == 0)
         {
-            return transform_set(state, node);
+            return transform_set(env, node);
         }
         else if (strcmp(head.symbol, ":=") == 0)
         {
-            return transform_insert(state, node);
+            return transform_insert(env, node);
         }
         else if (strcmp(head.symbol, "put") == 0)
         {
-            return transform_put(state, node);
+            return transform_put(env, node);
         }
         else if (strcmp(head.symbol, "+") == 0)
         {
@@ -1557,15 +1576,15 @@ SymAST transform_list(CTransformState *state, AST *node)
         }
         else if (strcmp(head.symbol, "defn") == 0)
         {
-            return transform_defn(state, node);
+            return transform_defn(env, node);
         }
         else if (strcmp(head.symbol, "while") == 0)
         {
-            return transform_while(state, node);
+            return transform_while(env, node);
         }
         else
         {
-            return transform_funcall(state, node);
+            return transform_funcall(env, node);
         }
         break;
     }
@@ -1580,13 +1599,13 @@ SymAST transform_list(CTransformState *state, AST *node)
     }
 }
 
-SymAST transform(CTransformState *state, AST *node)
+SymAST transform(VajerEnv *env, AST *node)
 {
     switch (node->ast_type)
     {
     case AST_LIST:
     {
-        return transform_list(state, node);
+        return transform_list(env, node);
         break;
     }
     case AST_SYMBOL:
@@ -1608,14 +1627,13 @@ SymAST transform(CTransformState *state, AST *node)
     }
 }
 
-AST *c_transform_all(AST *from)
+AST *c_transform_all(VajerEnv *env, AST *from)
 {
-    CTransformState state = {};
     AST *to = NULL;
 
     for (int i = 0; i < arrlen(from); i++)
     {
-        SymAST node = transform(&state, &from[i]);
+        SymAST node = transform(env, &from[i]);
         arrpush(to, node.ast);
     }
 
@@ -1623,30 +1641,6 @@ AST *c_transform_all(AST *from)
 }
 
 ////////////////// Compile to C //////////////////////
-
-typedef struct EnvEntry
-{
-    void *cvalue;
-    AST *symbol;
-    AST ast;
-} EnvEntry;
-
-typedef struct EnvKV
-{
-    char *key;
-    EnvEntry value;
-} EnvKV;
-
-typedef struct VajerEnv
-{
-    TypeKV *types;
-    EnvKV *values;
-    int gensym;
-
-    // TODO: these forms should be in VajerEnv
-    // because you need to compile the remaining forms :)
-    AST *forms_to_compile;
-} VajerEnv;
 
 typedef struct CCompilationState
 {
@@ -1665,7 +1659,7 @@ void c_compile_indentation(CCompilationState *state)
     }
 }
 
-void type_to_string(String *str, AST type)
+int type_to_string(String *str, AST type)
 {
     switch (type.ast_type)
     {
@@ -1674,7 +1668,7 @@ void type_to_string(String *str, AST type)
         {
             log("no concrete type: ");
             print_ast(&type);
-            sai_assert(0);
+            return 0;
         }
         strstr(str, type.symbol + 1);
         break;
@@ -1683,8 +1677,9 @@ void type_to_string(String *str, AST type)
         int len = arrlen(&type.list.elements[0]);
         if (len == 1)
         {
-            type_to_string(str, type.list.elements[0]);
+            int res = type_to_string(str, type.list.elements[0]);
             strstr(str, "*");
+            return res;
         }
         else
         {
@@ -1703,11 +1698,19 @@ void type_to_string(String *str, AST type)
         sai_assert(0);
         break;
     }
+    return 1;
 }
 
-void c_compile_type(CCompilationState *state, AST type)
+int c_compile_type(CCompilationState *state, AST type)
 {
-    type_to_string(&state->source, type);
+    String str = {};
+    int res = type_to_string(&str, type);
+    if (res)
+    {
+        strstr(&state->source, str.str);
+    }
+
+    return res;
 }
 
 void c_compile_in_block(CCompilationState *state, AST node)
@@ -1755,7 +1758,7 @@ void c_compile_do(CCompilationState *state, AST node)
 void c_compile_cast(CCompilationState *state, AST node)
 {
     string(&state->source, "(");
-    c_compile_type(state, node.list.elements[1]);
+    sai_assert(c_compile_type(state, node.list.elements[1]));
     string(&state->source, ")");
     c_compile(state, node.list.elements[2]);
     // string(&state->source, ")");
@@ -1791,7 +1794,7 @@ void c_compile_defstruct(CCompilationState *state, AST node)
     for (int i = 0; i < hmlen(map); i++)
     {
         c_compile_indentation(state);
-        c_compile_type(state, map[i].value);
+        sai_assert(c_compile_type(state, map[i].value));
         string(&state->source, " ");
         string(&state->source, map[i].key.symbol);
         string(&state->source, ";\n");
@@ -1840,7 +1843,14 @@ void c_compile_defn(CCompilationState *state, AST node)
     AST *type = node.list.elements[1].value_type;
     AST return_type = *ast_last(type); // node.list.elements[3];
     // string(&state->source, type.symbol + 1);
-    c_compile_type(state, return_type);
+    int res = c_compile_type(state, return_type);
+
+    if (!res)
+    {
+        log("could not compile type for:\n");
+        print_ast(&node);
+        return;
+    }
 
     char *funname = node.list.elements[1].symbol;
 
@@ -1854,7 +1864,7 @@ void c_compile_defn(CCompilationState *state, AST node)
         AST type = tuple.list.elements[0];
         AST symbol = tuple.list.elements[1];
 
-        c_compile_type(state, type);
+        sai_assert(c_compile_type(state, type));
 
         strstr(&state->source, " ", symbol.symbol);
         if (i != arrlen(args.list.elements) - 1)
@@ -1883,7 +1893,7 @@ void c_compile_funcall(CCompilationState *state, AST node)
     if (!ast_eq(node.value_type, &arrlast(node.list.elements[0].value_type->list.elements)))
     {
         strstr(&state->source, "(");
-        c_compile_type(state, *node.value_type);
+        sai_assert(c_compile_type(state, *node.value_type));
         strstr(&state->source, ")");
     }
     strstr(&state->source, node.list.elements[0].symbol, "(");
@@ -1923,7 +1933,12 @@ void c_compile_var(CCompilationState *state, AST node)
     AST type = *sym.value_type;
     sai_assert(sym.ast_type == AST_SYMBOL);
 
-    c_compile_type(state, type);
+    if (!c_compile_type(state, type))
+    {
+        log("node: ");
+        print_ast(&node);
+        // sai_assert(0);
+    }
 
     strstr(&state->source, " ", sym.symbol);
 
@@ -1958,7 +1973,7 @@ void c_compile_declare_var(CCompilationState *state, AST node)
     AST type = *sym.value_type;
     sai_assert(sym.ast_type == AST_SYMBOL);
 
-    c_compile_type(state, type);
+    sai_assert(c_compile_type(state, type));
 
     strstr(&state->source, " ", sym.symbol);
 }
@@ -2105,7 +2120,7 @@ void c_compile_map(CCompilationState *state, AST node)
     AstKV *map = node.map.kvs;
 
     string(&state->source, "(");
-    c_compile_type(state, *node.value_type);
+    sai_assert(c_compile_type(state, *node.value_type));
     string(&state->source, ")");
 
     strstr(&state->source, "{\n");
@@ -2183,6 +2198,7 @@ void c_compile(CCompilationState *state, AST node)
 CCompilationState *c_compile_all(AST *from)
 {
     CCompilationState *state = malloc(sizeof(CCompilationState));
+    *state = (CCompilationState){};
 
     for (int i = 0; i < arrlen(from); i++)
     {

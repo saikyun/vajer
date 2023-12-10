@@ -40,11 +40,16 @@ int main(int argc, char **argv)
     // VajerEnv *env = standard_environment();
     // eval(env, slurp("test/macro/list.lisp"));
 
-    MU_RUN_SUITE(test_eval);
+    int single = 1;
 
-    int do_test = 0;
-
-    if (do_test)
+    if (single)
+    {
+        MU_RUN_SUITE(test_eval);
+        //        MU_RUN_TEST(test_infer_in);
+        // MU_RUN_SUITE(test_macro);
+        // MU_RUN_SUITE(test_eval);
+    }
+    else
     {
         MU_RUN_SUITE(tcc_suite);
         MU_RUN_SUITE(lisp_suite);

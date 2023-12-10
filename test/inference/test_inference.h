@@ -223,7 +223,7 @@ MU_TEST(test_infer_then_compile)
         AST intsym = symbol(":int");
         mu_assert(ast_eq(x->value_type, &intsym));
 
-        c_transform_all(ast);
+        c_transform_all(env, ast);
     }
 }
 
@@ -232,7 +232,7 @@ MU_TEST(test_infer_var)
     {
         VajerEnv *env = standard_environment();
         AST *ast = vajer_ast(env, slurp("test/inference/var.lisp"));
-        c_transform_all(ast);
+        c_transform_all(env, ast);
     }
 }
 
@@ -278,6 +278,12 @@ MU_TEST(test_infer_get)
     eval(env, slurp("test/inference/get.lisp"));
 }
 
+MU_TEST(test_infer_in)
+{
+    VajerEnv *env = standard_environment();
+    eval(env, slurp("test/inference/in.lisp"));
+}
+
 MU_TEST_SUITE(test_suite_inference)
 {
     MU_RUN_TEST(test_basic_unification);
@@ -305,4 +311,6 @@ MU_TEST_SUITE(test_suite_inference)
     MU_RUN_TEST(test_infer_bigger_struct);
 
     MU_RUN_TEST(test_infer_get);
+
+    MU_RUN_TEST(test_infer_in);
 }

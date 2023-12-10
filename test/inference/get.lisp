@@ -1,4 +1,3 @@
-(declare printf [[:char] -> :void])
 (declare malloc [:int -> :void*])
 (defstruct Cat {data [:int]})
 

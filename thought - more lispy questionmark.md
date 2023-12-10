@@ -239,3 +239,24 @@ Just got to continue hitting M-T (which runs `make test`) and fix compilation er
 Stuff works! `test/test_eval.h` is the beginning of eval'ing multiple forms. :) Just need to keep at it.
 
 Test more forms.
+
+---
+
+So, I've tried to do some work so that types aren't overwritten in VajernEnv.types. Right now this breaks some tests, so I need to keep running tests and try to figure out why types are lost. Right now the breaks happen in `test_macro` and `test_sdl_suite`.
+
+I don't quite get it. It somehow:
+
+1. Fails to infer a type despite knowing the type enough(?)
+   1. This should be proven by `test_infer_in`. But I guess even that one fails when pasting the `other_list`-macro into it.
+   2. It doesn't fail though if I remove the `thing` parts and only have `inc` and `other_list`. So it seems that they are affecting each other somehow.
+      1. Oh, wait, that broke due to something different. I think it has to do with doing compilation anew when getting to a macro or something. I'll need to dig into that as well.
+
+I modified some code to make sure no same two gensym were ever used. Not sure if that did anything though.
+
+I should probably compare the environment with and without `thing`.
+
+I guess for now, just keep hitting M-t and try to understand what's going on.
+
+---
+
+Now I get an error which seems to be caused by putting stack-allocated variables into my VajerEnv. WIP in `add_type`, see the TODO there.

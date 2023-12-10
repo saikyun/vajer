@@ -1,4 +1,3 @@
-(declare printf [[:char] ?T -> :void])
 (defstruct Cat {name [:char] age :int})
 (defstruct Dog {name [:char] age :int})
 
@@ -19,8 +18,8 @@
   (printf "age: %d\n" agev))
 
 (defn main []
-    (var cat (cast :Cat {name "Rea" age 5}))
-    (var dog (cast :Dog {name "Dog" age 15}))
-    (print_cat cat)
-    (print_dog dog)
-    0)
+  (var cat (cast :Cat {name "Rea" age 5}))
+  (var dog (cast :Dog {name "Dog" age 15}))
+  (print_cat cat)
+  (print_dog dog)
+  0)

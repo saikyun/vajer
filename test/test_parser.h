@@ -139,7 +139,7 @@ MU_TEST(test_transform_if)
     */
 
     VajerEnv *env = standard_environment();
-    c_ast(vajer_ast(env, code));
+    c_ast(env, vajer_ast(env, code));
 }
 
 MU_TEST(test_transform_if_do)
@@ -153,7 +153,7 @@ MU_TEST(test_transform_if_do)
     */
 
     VajerEnv *env = standard_environment();
-    c_ast(vajer_ast(env, code));
+    c_ast(env, vajer_ast(env, code));
 }
 
 MU_TEST(test_compile_if)
@@ -189,7 +189,7 @@ MU_TEST(test_compile_if)
     char *code = "(if (zero? n) 0 1)";
 
     VajerEnv *env = standard_environment();
-    AST *transformed_nodes = c_ast(vajer_ast(env, code));
+    AST *transformed_nodes = c_ast(env, vajer_ast(env, code));
 
     c_compile_all(transformed_nodes);
 }
@@ -235,7 +235,7 @@ MU_TEST(test_compile_defn)
                  "    (* n (fac (- n 1)))))";
 
     VajerEnv *env = standard_environment();
-    AST *transformed_nodes = c_ast(vajer_ast(env, code));
+    AST *transformed_nodes = c_ast(env, vajer_ast(env, code));
 
     char *source = c_compile_all(transformed_nodes)->source.str;
 
@@ -266,7 +266,7 @@ MU_TEST(test_compile_two_types)
         ")";
 
     VajerEnv *env = standard_environment();
-    AST *transformed_nodes = c_ast(vajer_ast(env, code));
+    AST *transformed_nodes = c_ast(env, vajer_ast(env, code));
     /*
     printf("\n");
     for (int i = 0; i < arrlen(transformed_nodes); i++)
@@ -316,7 +316,7 @@ MU_TEST(test_compile_while)
         ")";
 
     VajerEnv *env = standard_environment();
-    AST *transformed_nodes = c_ast(vajer_ast(env, code));
+    AST *transformed_nodes = c_ast(env, vajer_ast(env, code));
 
     /*
     printf("\n");
@@ -367,7 +367,7 @@ MU_TEST(test_add_type_declare)
 {
     char *code = slurp("lisp/declare.lisp");
     VajerEnv *env = standard_environment();
-    AST *ast = c_ast(vajer_ast(env, code));
+    AST *ast = c_ast(env, vajer_ast(env, code));
 
     // result of lule should have type void
     mu_assert(ast[1].list.elements[1].value_type != NULL);
@@ -380,7 +380,7 @@ MU_TEST(test_add_type_list)
 {
     char *code = slurp("lisp/list.lisp");
     VajerEnv *env = standard_environment();
-    AST *ast = c_ast(vajer_ast(env, code));
+    AST *ast = c_ast(env, vajer_ast(env, code));
 
     /*
     printf("\ntype info:\n");
@@ -402,7 +402,7 @@ MU_TEST(test_add_type_intermediate)
 {
     char *code = slurp("lisp/intermediate_types.lisp");
     VajerEnv *env = standard_environment();
-    AST *ast = c_ast(vajer_ast(env, code));
+    AST *ast = c_ast(env, vajer_ast(env, code));
 
     /*
         printf("\ntype info:\n");
@@ -425,7 +425,7 @@ MU_TEST(test_add_type_if)
 
     char *code = slurp("lisp/if.lisp");
     VajerEnv *env = standard_environment();
-    AST *ast = c_ast(vajer_ast(env, code));
+    AST *ast = c_ast(env, vajer_ast(env, code));
 
     if (do_print)
     {

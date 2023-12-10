@@ -6,7 +6,6 @@
 (declare SDL_SetRenderDrawColor [:SDL_Renderer* :int :int :int :int -> :void])
 (declare SDL_RenderClear [:SDL_Renderer* -> :void])
 (declare SDL_Quit [-> :void])
-(declare printf [[:char] ?T -> :void])
 (declare SDL_CreateRenderer [:SDL_Window* :int :int -> :SDL_Renderer*])
 (declare SDL_CreateWindow [[:char] :int :int :int :int :int -> :SDL_Window*])
 (declare malloc [:int -> :void*])

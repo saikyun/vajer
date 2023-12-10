@@ -17,6 +17,76 @@ typedef struct InferTypeState
 
 char *CURRENT_CODE = NULL;
 
+void print_types(TypeKV *types)
+{
+    log("types with len %ld:\n", shlen(types));
+    for (int i = 0; i < shlen(types); i++)
+    {
+        prin_ast(types[i].key);
+        prn("\t");
+        print_ast(types[i].value);
+    }
+}
+
+int is_var(AST *e)
+{
+    return e->ast_type == AST_SYMBOL && e->symbol[0] == '?';
+}
+
+void add_type(TypeKV **types, AST *sym, AST *type)
+{
+    AST *existing_type = get_types(*types, sym);
+
+    if (existing_type)
+    {
+        log("type already in types!");
+        log("new type: ");
+        prin_ast(sym);
+        prn(" = ");
+        print_ast(type);
+        log("existing type: ");
+        print_ast(existing_type);
+        sai_assert(0);
+    }
+
+    log("\n\n\e[35m>>> lul\e[0m\n");
+    print_ast(sym);
+    print_ast(type);
+    print_types(*types);
+
+    // TODO: if I don't do this malloc, things break when exiting the stack
+    // (see `test_double_eval`)
+    // which hints that I accidentally put something stack allocated in `env`
+    AST *lul = (AST *)malloc(sizeof AST);
+    *lul = *sym;
+
+    hmput(*types, lul, type);
+}
+
+void replace_type(TypeKV **types, AST *sym, AST *type)
+{
+    if (!in_types(*types, sym))
+    {
+        log("type not in types!");
+        sai_assert(0);
+    }
+    else
+    {
+        log("replacing type for ");
+        print_ast(sym);
+    }
+
+    for (int i = hmlen(*types) - 1; i >= 0; i--)
+    {
+        if (ast_eq((*types)[i].key, sym))
+        {
+            hmdel(*types, (*types)[i].key);
+        }
+    }
+
+    add_type(types, sym, type);
+}
+
 int line_no(char *code, int pos)
 {
     int nof = 1;
@@ -44,17 +114,6 @@ void print_source(char *code, AST *ast)
     {
         log("no source for expr: ");
         print_ast(ast);
-    }
-}
-
-void print_types(TypeKV *types)
-{
-    log("types with len %ld:\n", shlen(types));
-    for (int i = 0; i < shlen(types); i++)
-    {
-        prin_ast(types[i].key);
-        prn("\t");
-        print_ast(types[i].value);
     }
 }
 
@@ -158,13 +217,35 @@ void assign_type_names(VajerEnv *env, AST *e)
         {
             AST *type = &list[2];
             list[1].value_type = type;
-            hmput(env->types, &list[1], type);
+
+            AST *existing_type = get_types(env->types, &list[1]);
+
+            if (existing_type)
+            {
+                log("type already exists for ");
+                prin_ast(&list[1]);
+                prn(" = ");
+                print_ast(existing_type);
+                if (is_var(existing_type))
+                {
+                    replace_type(&env->types, &list[1], type);
+                }
+                else
+                {
+                    log("existing type is not a var, aborting...");
+                    sai_assert(0);
+                }
+            }
+            else
+            {
+                add_type(&env->types, &list[1], type);
+            }
         }
         else if (arrlen(list) > 0 && list[0].ast_type == AST_SYMBOL && strcmp(list[0].symbol, "declare-var") == 0)
         {
             AST *type = &list[2];
             list[1].value_type = type;
-            hmput(env->types, &list[1], type);
+            add_type(&env->types, &list[1], type);
         }
         else if (arrlen(list) > 0 && list[0].ast_type == AST_SYMBOL && strcmp(list[0].symbol, "defstruct") == 0)
         {
@@ -195,9 +276,9 @@ void assign_type_names(VajerEnv *env, AST *e)
 
             arrpush(els, *new_name_ast);
 
-            hmput(env->types, new_name_ast, map);
+            add_type(&env->types, new_name_ast, map);
             name->value_type = new_list(type);
-            hmput(env->types, name, name->value_type);
+            add_type(&env->types, name, name->value_type);
         }
         else if (arrlen(list) > 0 && list[0].ast_type == AST_SYMBOL && strcmp(list[0].symbol, "cast") == 0)
         {
@@ -231,7 +312,7 @@ void assign_type_names(VajerEnv *env, AST *e)
                 }
             }
 
-            hmput(env->types, e, type);
+            add_type(&env->types, e, type);
         }
         else
         {
@@ -239,8 +320,14 @@ void assign_type_names(VajerEnv *env, AST *e)
             {
                 assign_type_names(env, &e->list.elements[i]);
             }
-            e->value_type = new_symbol(gentype(env));
-            hmput(env->types, e, e->value_type);
+
+            AST *existing_type = get_types(env->types, e);
+            if (!existing_type)
+            {
+                existing_type = new_symbol(gentype(env));
+                add_type(&env->types, e, existing_type);
+            }
+            e->value_type = existing_type;
         }
         break;
     }
@@ -252,7 +339,7 @@ void assign_type_names(VajerEnv *env, AST *e)
         }
 
         e->value_type = new_map(map1(e->map.kvs[0].key, *e->map.kvs[0].value.value_type));
-        hmput(env->types, e, e->value_type);
+        add_type(&env->types, e, e->value_type);
 
         break;
     }
@@ -261,7 +348,7 @@ void assign_type_names(VajerEnv *env, AST *e)
         {
             AST *type = new_symbol(gentype(env));
             e->value_type = type;
-            hmput(env->types, e, type);
+            add_type(&env->types, e, type);
         }
         else
         {
@@ -271,15 +358,15 @@ void assign_type_names(VajerEnv *env, AST *e)
         break;
     case AST_NUMBER:
         if (!in_types(env->types, e))
-            hmput(env->types, e, &value_type_int);
+            add_type(&env->types, e, &value_type_int);
         break;
     case AST_STRING:
         if (!in_types(env->types, e))
-            hmput(env->types, e, value_type_string());
+            add_type(&env->types, e, value_type_string());
         break;
     case AST_BOOLEAN:
         if (!in_types(env->types, e))
-            hmput(env->types, e, &value_type_boolean);
+            add_type(&env->types, e, &value_type_boolean);
         break;
     default:
         log("unhandled ast for assign_type_names: ");
@@ -437,11 +524,6 @@ Constraint *generate_constraints(VajerEnv *env, Constraint *constraints)
     return constraints;
 }
 
-int is_var(AST *e)
-{
-    return e->ast_type == AST_SYMBOL && e->symbol[0] == '?';
-}
-
 int occurs_check(AST *x, AST *y, TypeKV **env)
 {
     // TODO: implement :P
@@ -463,7 +545,7 @@ int unify_variable(AST *v, AST *x, TypeKV **env)
     {
         if (!in_types(*env, v))
         {
-            hmput(*env, v, new_map((AST){.ast_type = AST_MAP, .map = (Map){}}));
+            add_type(env, v, new_map((AST){.ast_type = AST_MAP, .map = (Map){}}));
         }
         else
         {
@@ -557,7 +639,7 @@ int unify_variable(AST *v, AST *x, TypeKV **env)
         // prin_ast(v);
         // prn(" to ");
         // print_ast(x);
-        hmput(*env, v, x);
+        add_type(env, v, x);
         return 1;
     }
 }
@@ -910,9 +992,9 @@ void ast_resolve_types_all(VajerEnv *env, char *code, AST *ast)
 {
     int do_print = 0;
 
-    if (hmgeti(env->types, &STRUCT_KEY) == -1)
+    if (get_types(env->types, &STRUCT_KEY) == 0)
     {
-        hmput(env->types, &STRUCT_KEY, new_map((AST){.ast_type = AST_MAP, .map = (Map){}}));
+        add_type(&env->types, &STRUCT_KEY, new_map((AST){.ast_type = AST_MAP, .map = (Map){}}));
     }
 
     // log("\e[36m>>> env before assigning type names\e[0m\n");
@@ -982,7 +1064,10 @@ void ast_resolve_types_all(VajerEnv *env, char *code, AST *ast)
         }
     }
 
-    // log("\n>> \e[35menv after resolution\e[0m\n");
-    // print_env(env);
-    // prn("\n\n");
+    if (do_print)
+    {
+        log("\n>> \e[35menv after resolution\e[0m\n");
+        print_env(env);
+        prn("\n\n");
+    }
 }
