@@ -390,6 +390,7 @@ typedef struct VajerEnv
     int scope_gensym;
 
     AST *forms_to_compile;
+    AST *forms_with_unresolved_types;
 
     // TODO: not sure if this should be separate, probably should be in types or values
     TypeKV *macros;
@@ -682,8 +683,54 @@ void print_ast2(AST el)
 
 void print_ast_list(AST *els)
 {
-    for (AST *e = &els[0], *end = &arrlast(els) + 1; e != end; e++)
-        print_ast(e);
+    if (arrlen(els) > 0)
+    {
+        for (AST *e = &els[0], *end = &arrlast(els) + 1; e != end; e++)
+            print_ast(e);
+    }
+}
+
+int _is_var(char *sym)
+{
+    return sym[0] == '?';
+}
+
+int is_var(AST *e)
+{
+    return e->ast_type == AST_SYMBOL && _is_var(e->symbol);
+}
+
+int has_var(AST *e)
+{
+    switch (e->ast_type)
+    {
+    case AST_SYMBOL:
+        return _is_var(e->symbol);
+    case AST_LIST:
+    {
+        for (int i = 0; i < arrlen(e->list.elements); i++)
+        {
+            if (has_var(&e->list.elements[i]))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+    case AST_MAP:
+    {
+        for (int i = 0; i < hmlen(e->map.kvs); i++)
+        {
+            if (has_var(&e->map.kvs[i].value))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+    default:
+        return false;
+    }
 }
 
 AST *ast_in(AST *list, int n)
@@ -788,6 +835,84 @@ int ast_eq(AST *n1, AST *n2)
         sai_assert(0);
         break;
     }
+}
+
+int in_types(TypeKV *types, AST *e)
+{
+    for (int i = 0; i < hmlen(types); i++)
+    {
+        if (ast_eq(types[i].key, e))
+            return 1;
+    }
+    return 0;
+}
+
+AST *get_types(TypeKV *types, AST *e)
+{
+    for (int i = 0; i < hmlen(types); i++)
+    {
+        if (ast_eq(types[i].key, e))
+            return types[i].value;
+    }
+
+    return NULL;
+}
+
+void add_type(TypeKV **types, AST *sym, AST *type)
+{
+    AST *existing_type = get_types(*types, sym);
+
+    if (existing_type)
+    {
+        log("type already in types!");
+        log("new type: ");
+        prin_ast(sym);
+        prn(" = ");
+        print_ast(type);
+        log("existing type: ");
+        print_ast(existing_type);
+        sai_assert(0);
+    }
+
+    // TODO: if I don't do this malloc, things break when exiting the stack
+    // (see `test_double_eval`)
+    // which hints that I accidentally put something stack allocated in `env`
+    // AST *lul = (AST *)malloc(sizeof AST);
+    //*lul = *sym;
+
+    hmput(*types, sym, type);
+}
+
+int remove_type(TypeKV **types, AST *sym)
+{
+    for (int i = hmlen(*types) - 1; i >= 0; i--)
+    {
+        if (ast_eq((*types)[i].key, sym))
+        {
+            hmdel(*types, (*types)[i].key);
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+void replace_type(TypeKV **types, AST *sym, AST *type)
+{
+    if (!in_types(*types, sym))
+    {
+        log("type not in types!");
+        sai_assert(0);
+    }
+    else
+    {
+        log("replacing type for ");
+        print_ast(sym);
+    }
+
+    remove_type(types, sym);
+
+    add_type(types, sym, type);
 }
 
 AST list0()
@@ -1102,27 +1227,6 @@ typedef struct TypeState
     TypeKV *globals;
 } TypeState;
 
-int in_types(TypeKV *types, AST *e)
-{
-    for (int i = 0; i < hmlen(types); i++)
-    {
-        if (ast_eq(types[i].key, e))
-            return 1;
-    }
-    return 0;
-}
-
-AST *get_types(TypeKV *types, AST *e)
-{
-    for (int i = 0; i < hmlen(types); i++)
-    {
-        if (ast_eq(types[i].key, e))
-            return types[i].value;
-    }
-
-    return NULL;
-}
-
 ////////////////// Transform to C //////////////////////
 
 typedef struct SymAST
@@ -1140,6 +1244,31 @@ char *gensym(VajerEnv *env)
     return str;
 }
 
+AST *clone(AST *node)
+{
+    sai_assert(node);
+    switch (node->ast_type)
+    {
+    case AST_LIST:
+    {
+        AST *list = new_list(list0());
+        list->list.type = node->list.type;
+        for (int i = 0; i < arrlen(node->list.elements); i++)
+        {
+            arrpush(list->list.elements, node->list.elements[i]);
+        }
+        return list;
+    }
+    default:
+    {
+        log("no implementation of clone for ");
+        print_ast(node);
+        sai_assert(0);
+    }
+    }
+    return node;
+}
+
 SymAST transform(VajerEnv *env, AST *node);
 
 SymAST transform_if(VajerEnv *env, AST *node)
@@ -1148,16 +1277,21 @@ SymAST transform_if(VajerEnv *env, AST *node)
     AST do_block = list1(symbol("upscope"));
 
     sai_assert(node->value_type);
+
     int returns_void = ast_eq(node->value_type, &value_type_void);
+
+    // TODO: deep clone node before doing transformations
+    node = clone(node);
 
     SymAST cond = transform(env, &node->list.elements[1]);
     if (cond.sym != NULL)
     {
+        AST sym_with_type = with_type(symbol(cond.sym), cond.ast.value_type);
         arrpush(do_block.list.elements,
-                list2(symbol("var"), with_type(symbol(cond.sym), cond.ast.value_type)));
+                list2(symbol("var"), sym_with_type));
         arrpush(do_block.list.elements,
                 cond.ast);
-        node->list.elements[1] = symbol(cond.sym);
+        node->list.elements[1] = sym_with_type;
     }
     else
     {
@@ -1222,7 +1356,7 @@ SymAST transform_if(VajerEnv *env, AST *node)
             }
             else
             {
-                node->list.elements[3] = list3(symbol("set"), symbol(sym), branch.ast);
+                node->list.elements[3] = list3(symbol("set"), with_type(symbol(sym), branch.ast.value_type), branch.ast);
             }
         }
     }
@@ -1628,14 +1762,72 @@ SymAST transform(VajerEnv *env, AST *node)
     }
 }
 
+int has_unresolved_types(AST *ast)
+{
+    switch (ast->ast_type)
+    {
+    case AST_LIST:
+    {
+        for (int i = 0; i < arrlen(ast->list.elements); i++)
+        {
+            if (has_unresolved_types(&ast->list.elements[i]))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+    case AST_MAP:
+    {
+        for (int i = 0; i < hmlen(ast->map.kvs); i++)
+        {
+            if (has_unresolved_types(&ast->map.kvs[i].value))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+    case AST_SYMBOL:
+    {
+        if (ast->value_type && has_var(ast->value_type))
+        {
+            log("has_var? %d\n", has_var(ast->value_type));
+            print_ast(ast->value_type);
+        }
+
+        return ast->value_type && has_var(ast->value_type);
+    }
+    default:
+        return false;
+    }
+}
+
+int is_declare(AST *ast)
+{
+    AST decl = symbol("declare");
+    return ast->ast_type == AST_LIST && arrlen(ast->list.elements) > 0 && ast_eq(&ast->list.elements[0], &decl);
+}
+
 AST *c_transform_all(VajerEnv *env, AST *from)
 {
     AST *to = NULL;
 
     for (int i = 0; i < arrlen(from); i++)
     {
-        SymAST node = transform(env, &from[i]);
-        arrpush(to, node.ast);
+        if (has_unresolved_types(&from[i]) && !is_declare(&env->forms_to_compile[i]))
+        {
+            log("\e[33m>>>>>>>>>>>>> HAS UNRESOLVED TYPES >>>>>>>>\e[0m\n");
+            print_ast(&from[i]);
+            sai_assert(0);
+        }
+        else
+        {
+            log("is not unresolved");
+            print_ast(&from[i]);
+            SymAST node = transform(env, &from[i]);
+            arrpush(to, node.ast);
+        }
     }
 
     return to;

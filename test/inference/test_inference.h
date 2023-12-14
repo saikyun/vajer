@@ -198,7 +198,8 @@ MU_TEST(test_basic_inference)
 
         {
             VajerEnv *env = standard_environment();
-            AST *ast = vajer_ast(env, slurp("test/inference/basic.lisp"));
+            vajer_ast(env, slurp("test/inference/basic.lisp"));
+            AST *ast = env->forms_to_compile;
 
             AST *x = &ast[0].list.elements[2].list.elements[0];
             AST *call = &ast[1];
@@ -213,7 +214,8 @@ MU_TEST(test_infer_then_compile)
 {
     {
         VajerEnv *env = standard_environment();
-        AST *ast = vajer_ast(env, slurp("test/inference/adder.lisp"));
+        vajer_ast(env, slurp("test/inference/adder.lisp"));
+        AST *ast = env->forms_to_compile;
 
         AST *x = &ast[0].list.elements[2].list.elements[0];
         AST intsym = symbol(":int");
@@ -227,7 +229,8 @@ MU_TEST(test_infer_var)
 {
     {
         VajerEnv *env = standard_environment();
-        AST *ast = vajer_ast(env, slurp("test/inference/var.lisp"));
+        vajer_ast(env, slurp("test/inference/var.lisp"));
+        AST *ast = env->forms_to_compile;
         c_transform_all(env, ast);
     }
 }

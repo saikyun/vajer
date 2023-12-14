@@ -29,6 +29,23 @@ VajerEnv *standard_environment()
         *type = list4(symbol("?T"), symbol("?T"), symbol("->"), symbol(":int"));
         hmput(types, new_symbol("=="), type);
     }
+    /*
+    {
+        AST *type = (AST *)malloc(sizeof(AST));
+        *type = list5(symbol(":int"), symbol("?T2"), symbol("?T2"), symbol("->"), symbol(":T2"));
+        hmput(types, new_symbol("if"), type);
+    }
+    {
+        AST *type = (AST *)malloc(sizeof(AST));
+        *type = list4(symbol(":int"), symbol("?T2"), symbol("->"), symbol(":T2"));
+        hmput(types, new_symbol("if1"), type);
+    }
+    */
+    {
+        AST *type = (AST *)malloc(sizeof(AST));
+        *type = list3(symbol(":Any"), symbol("->"), symbol(":int"));
+        hmput(types, new_symbol("sizeof"), type);
+    }
     {
         AST *type = (AST *)malloc(sizeof(AST));
         *type = list3(symbol(":AST"), symbol("->"), symbol(":void"));
@@ -113,6 +130,12 @@ VajerEnv *standard_environment()
         AST *type = (AST *)malloc(sizeof(AST));
         *type = list4(symbol("?T"), symbol("?T"), symbol("->"), value_type_void);
         hmput(types, new_symbol("defstruct"), type);
+    }
+
+    {
+        AST *type = (AST *)malloc(sizeof(AST));
+        *type = list3(symbol(":int"), symbol("->"), symbol(":int"));
+        hmput(types, new_symbol("zero?"), type);
     }
 
     VajerEnv *env = (VajerEnv *)malloc(sizeof(VajerEnv));
@@ -384,7 +407,7 @@ void ast_eval_macros(VajerEnv *env, AST *ast)
 
 AST *resolve_types(VajerEnv *env, AST *root_nodes, char *code)
 {
-    int do_print = 0;
+    int do_print = 1;
 
     ast_add_scopes(env, root_nodes);
 
@@ -408,7 +431,7 @@ AST *resolve_types(VajerEnv *env, AST *root_nodes, char *code)
     return root_nodes;
 }
 
-AST *vajer_ast(VajerEnv *env, char *code)
+void vajer_ast(VajerEnv *env, char *code)
 {
     int do_print = 0;
     if (do_print)
@@ -426,12 +449,17 @@ AST *vajer_ast(VajerEnv *env, char *code)
         log("\n");
     }
 
-    ast_eval_macros(env, root_nodes);
+    for (int i = 0; i < arrlen(root_nodes); i++)
+    {
+        AST *l = NULL;
+        arrpush(l, root_nodes[i]);
+        ast_eval_macros(env, l);
+    }
 
     // since `ast_eval_macros` might already have compiled forms
     // we don't resolve types for `root_nodes` but just
     // the nodes left to compile
-    return resolve_types(env, env->forms_to_compile, code);
+    resolve_types(env, env->forms_to_compile, code);
 }
 
 //
@@ -515,9 +543,9 @@ AST *c_ast(VajerEnv *env, AST *ast)
 
 ////////////////// Eval / compile //////////////////////
 
-CCompilationState *compile_ast_to_file(VajerEnv *env, AST *ast, char *path)
+CCompilationState *compile_ast_to_file(VajerEnv *env, AST *ast123, char *path)
 {
-    CCompilationState *res = c_compile_all(c_ast(env, ast));
+    CCompilationState *res = c_compile_all(c_ast(env, env->forms_to_compile));
 
     FILE *f = fopen(path, "w");
     sai_assert(f != NULL);
@@ -537,27 +565,13 @@ CCompilationState *compile_ast_to_file(VajerEnv *env, AST *ast, char *path)
     return res;
 }
 
-CCompilationState *compile_to_file(VajerEnv *env, char *code, char *path)
+void eval_ast(VajerEnv *env)
 {
-    return compile_ast_to_file(env, vajer_ast(env, code), path);
-}
-
-void eval_ast(VajerEnv *env, AST *ast)
-{
-    int do_print = 0;
+    int do_print = 1;
 
     if (do_print)
     {
         log("\n\e[33m>>> eval ast\e[0m\n");
-
-        AST_PRINT_TYPES = 1;
-        for (int i = 0; i < arrlen(ast); i++)
-        {
-            print_ast(&ast[i]);
-            prn("\n");
-        }
-
-        // resolve_types(env, env->forms_to_compile, "");
 
         print_env(env);
 
@@ -571,6 +585,19 @@ void eval_ast(VajerEnv *env, AST *ast)
         AST_PRINT_TYPES = 1;
     }
 
+    for (int i = 0; i < arrlen(env->forms_to_compile); i++)
+    {
+        if (has_unresolved_types(&env->forms_to_compile[i]) && !is_declare(&env->forms_to_compile[i]))
+        {
+            log("\e[33m>>>>>>>>>>>>> HAS UNRESOLVED TYPES >>>>>>>>\e[0m\n");
+            print_ast(&env->forms_to_compile[i]);
+            arrpush(env->forms_with_unresolved_types, env->forms_to_compile[i]);
+            arrdel(env->forms_to_compile, i);
+            i--;
+        }
+    }
+
+    log("RUNNING c_ast ETC\n");
     CCompilationState *res = c_compile_all(c_ast(env, env->forms_to_compile));
 
     env->forms_to_compile = NULL;
@@ -702,9 +729,18 @@ void eval_ast(VajerEnv *env, AST *ast)
         EnvKV *entry = &res->env[i];
         if (do_print)
         {
-            log("%s", entry->key);
-            prn(" is ");
-            print_ast(get_types(env->types, res->env[i].value.symbol));
+            log("%s (", entry->key);
+            prin_ast(res->env[i].value.symbol);
+            prn(") is ");
+            AST *type = get_types(env->types, res->env[i].value.symbol);
+            if (type)
+            {
+                print_ast(type);
+            }
+            else
+            {
+                prn("no type :O\n");
+            }
         }
 
         entry->value.cvalue = tcc_get_symbol(s, entry->key);
@@ -737,13 +773,76 @@ void eval_ast(VajerEnv *env, AST *ast)
 void resolve_types_eval_ast(VajerEnv *env, AST *ast)
 {
     ast_eval_macros(env, ast);
-    return eval_ast(env, resolve_types(env, env->forms_to_compile, ""));
+    resolve_types(env, env->forms_to_compile, "");
+    return eval_ast(env);
 }
 
 void eval(VajerEnv *env, char *code)
 {
-    AST *ast = vajer_ast(env, code);
-    eval_ast(env, ast);
+
+    int do_print = 0;
+    if (do_print)
+    {
+        log("\e[34m>> code\n\e[0m%s\n", code);
+    }
+
+    Token *tokens = tokenize(code, strlen(code));
+
+    AST *root_nodes = parse_all(code, tokens);
+    if (do_print)
+    {
+        log("\n\e[35m>> parsed\n\e[0m");
+        print_ast_list(root_nodes);
+        log("\n");
+    }
+
+    for (int i = 0; i < arrlen(root_nodes); i++)
+    {
+
+        AST *l = NULL;
+        arrpush(l, root_nodes[i]);
+        ast_eval_macros(env, l);
+
+        // since `ast_eval_macros` might already have compiled forms
+        // we don't resolve types for `root_nodes` but just
+        // the nodes left to compile
+        log("resolving types for FORMS TO COMPILE WUT\n");
+        print_ast_list(env->forms_to_compile);
+        resolve_types(env, env->forms_to_compile, code);
+
+        log("stuff\n");
+        print_ast_list(env->forms_with_unresolved_types);
+        resolve_types(env, env->forms_with_unresolved_types, code);
+
+        for (int i = 0; i < arrlen(env->forms_with_unresolved_types); i++)
+        {
+            if (has_unresolved_types(&env->forms_with_unresolved_types[i]))
+            {
+                log(">>>>>>>>>>>>>>>>>> still unresolved...\n");
+                print_ast(&env->forms_with_unresolved_types[i]);
+            }
+            else
+            {
+                log(">>>>>>>>>>>>>>>>>>>>> not unresolved anymore :)\n");
+                print_ast(&env->forms_with_unresolved_types[i]);
+                AST *og_forms_to_compile = env->forms_to_compile;
+                env->forms_to_compile = NULL;
+                arrpush(env->forms_to_compile, env->forms_with_unresolved_types[i]);
+                arrdel(env->forms_with_unresolved_types, i);
+                i--;
+                eval_ast(env);
+                env->forms_to_compile = og_forms_to_compile;
+            }
+        }
+
+        eval_ast(env);
+    }
+}
+
+void real_eval(VajerEnv *env, char *code)
+{
+    vajer_ast(env, code);
+    eval_ast(env);
 }
 
 AST *eval_macro(EnvKV *cenv, VajerEnv *env, AST *ast, char *symname, AST *args)

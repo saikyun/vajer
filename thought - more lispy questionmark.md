@@ -268,3 +268,16 @@ This should obviously be fixed better later, by putting all ast in a good place 
 Now all tests work except for `lisp/sdl-test-structs.lisp`. It seems to not figure out types for `in` calls sometimes. Not sure why. Possibly related to the use of structs, but unclear.
 
 Okay, so, I have this weird bug in `lisp/sdl-test-structs.lisp`, but it's such a big file so it's annoying to look at. I'm gonna try to provoke the type checker a bit by making `eval` not run `vajer_ast` (etc) on all forms at once, but instead run it one form at a time.
+
+Huh, okay. So, that has lead to some stuff.
+
+1. Compiler doesn't like symbols with var value_types, so I set value_type to NULL where no type is intended (e.g. for `if`)
+2. Transformations occur onto references, i.e. things stored in VajerEnv.types is mutated. Works well for my one-shot approach, but now I want to keep things nice in VajerEnv. Easiest solution is probably just to clone the nodes that will be modified, so next up is implementing `clone` for `AST*`, and use it in the transform-step.
+
+Made `clone`, it fixed the issue (though I've only used it on `if`, probably need to use it with more things).
+
+- [ ] TODO: use `clone` in all transformation cases were mutation occurrs
+
+Now I've ended up with a new, interesting error. Namely that C doesn't recognize structs that I haven't included. So I need to put things from the `__structs` key in types into each file. Preferably I'd only insert the structs that are used by the form, but for now this will do.
+
+Next step could be adding a function which takes a struct type and returns the C code needed to define it. I could probably look at `c_compile_defstruct`. :)

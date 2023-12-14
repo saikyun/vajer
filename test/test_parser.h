@@ -139,7 +139,8 @@ MU_TEST(test_transform_if)
     */
 
     VajerEnv *env = standard_environment();
-    c_ast(env, vajer_ast(env, code));
+    vajer_ast(env, code);
+    c_ast(env, env->forms_to_compile);
 }
 
 MU_TEST(test_transform_if_do)
@@ -153,7 +154,8 @@ MU_TEST(test_transform_if_do)
     */
 
     VajerEnv *env = standard_environment();
-    c_ast(env, vajer_ast(env, code));
+    vajer_ast(env, code);
+    c_ast(env, env->forms_to_compile);
 }
 
 MU_TEST(test_compile_if)
@@ -189,7 +191,8 @@ MU_TEST(test_compile_if)
     char *code = "(if (zero? n) 0 1)";
 
     VajerEnv *env = standard_environment();
-    AST *transformed_nodes = c_ast(env, vajer_ast(env, code));
+    vajer_ast(env, code);
+    AST *transformed_nodes = c_ast(env, env->forms_to_compile);
 
     c_compile_all(transformed_nodes);
 }
@@ -232,26 +235,39 @@ MU_TEST(test_compile_defn)
     char *code = "(defn fac [n]\n"
                  "  (if (<= n 1)\n"
                  "    1\n"
-                 "    (* n (fac (- n 1)))))";
+                 "    (* n (fac (- n 1)))))"
+                 "(defn main [] (fac 5))";
+
+    /*
+        VajerEnv *env = standard_environment();
+        vajer_ast(env, code);
+        AST *transformed_nodes = c_ast(env, env->forms_to_compile);
+
+        char *source = c_compile_all(transformed_nodes)->source.str;
+
+        // printf("source:\n%s\n", source);
+
+        TCCState *s = tcc_new();
+        tcc_set_output_type(s, TCC_OUTPUT_MEMORY);
+
+        mu_assert(tcc_compile_string(s, source) != -1);
+
+        int size = tcc_relocate(s, NULL);
+        mu_assert(size != -1);
+        void *mem = malloc(size);
+        tcc_relocate(s, mem);
+
+        int (*fac)(int) = tcc_get_symbol(s, "fac");
+        mu_assert(fac != NULL);
+        // printf("fac(5): %d\n", fac(5));
+        mu_assert(fac(5) == 120);
+
+        */
 
     VajerEnv *env = standard_environment();
-    AST *transformed_nodes = c_ast(env, vajer_ast(env, code));
+    eval(env, code);
 
-    char *source = c_compile_all(transformed_nodes)->source.str;
-
-    // printf("source:\n%s\n", source);
-
-    TCCState *s = tcc_new();
-    tcc_set_output_type(s, TCC_OUTPUT_MEMORY);
-
-    mu_assert(tcc_compile_string(s, source) != -1);
-
-    int size = tcc_relocate(s, NULL);
-    mu_assert(size != -1);
-    void *mem = malloc(size);
-    tcc_relocate(s, mem);
-
-    int (*fac)(int) = tcc_get_symbol(s, "fac");
+    int (*fac)(int) = shget(env->values, "fac").cvalue;
     mu_assert(fac != NULL);
     // printf("fac(5): %d\n", fac(5));
     mu_assert(fac(5) == 120);
@@ -266,7 +282,8 @@ MU_TEST(test_compile_two_types)
         ")";
 
     VajerEnv *env = standard_environment();
-    AST *transformed_nodes = c_ast(env, vajer_ast(env, code));
+    vajer_ast(env, code);
+    AST *transformed_nodes = c_ast(env, env->forms_to_compile);
     /*
     printf("\n");
     for (int i = 0; i < arrlen(transformed_nodes); i++)
@@ -316,7 +333,8 @@ MU_TEST(test_compile_while)
         ")";
 
     VajerEnv *env = standard_environment();
-    AST *transformed_nodes = c_ast(env, vajer_ast(env, code));
+    vajer_ast(env, code);
+    AST *transformed_nodes = c_ast(env, env->forms_to_compile);
 
     /*
     printf("\n");
@@ -367,7 +385,8 @@ MU_TEST(test_add_type_declare)
 {
     char *code = slurp("lisp/declare.lisp");
     VajerEnv *env = standard_environment();
-    AST *ast = c_ast(env, vajer_ast(env, code));
+    vajer_ast(env, code);
+    AST *ast = c_ast(env, env->forms_to_compile);
 
     // result of lule should have type void
     mu_assert(ast[1].list.elements[1].value_type != NULL);
@@ -380,7 +399,9 @@ MU_TEST(test_add_type_list)
 {
     char *code = slurp("lisp/in_str.lisp");
     VajerEnv *env = standard_environment();
-    AST *ast = c_ast(env, vajer_ast(env, code));
+
+    vajer_ast(env, code);
+    AST *ast = c_ast(env, env->forms_to_compile);
 
     /*
     printf("\ntype info:\n");
@@ -402,7 +423,9 @@ MU_TEST(test_add_type_intermediate)
 {
     char *code = slurp("lisp/intermediate_types.lisp");
     VajerEnv *env = standard_environment();
-    AST *ast = c_ast(env, vajer_ast(env, code));
+
+    vajer_ast(env, code);
+    AST *ast = c_ast(env, env->forms_to_compile);
 
     /*
         printf("\ntype info:\n");
@@ -421,71 +444,7 @@ MU_TEST(test_add_type_intermediate)
 
 MU_TEST(test_add_type_if)
 {
-    int do_print = 0;
-
     char *code = slurp("lisp/if.lisp");
-    VajerEnv *env = standard_environment();
-    AST *ast = c_ast(env, vajer_ast(env, code));
-
-    if (do_print)
-    {
-        printf("\ntype info:\n");
-        for (int i = 0; i < arrlen(ast); i++)
-        {
-            print_ast(&ast[i]);
-        }
-
-        printf("\ncode:\n%s\n", c_compile_all(ast)->source.str);
-    }
-    return;
-
-    {
-        AST *if_node = &ast[2].list.elements[5].list.elements[1];
-
-        if (do_print)
-        {
-            print_ast(if_node);
-        }
-
-        mu_assert(if_node->value_type != NULL);
-        AST sym = symbol(":void*");
-        mu_assert(ast_eq(if_node->value_type, &sym));
-    }
-
-    {
-        AST *if_node = &ast[2].list.elements[7].list.elements[1];
-
-        if (do_print)
-        {
-            printf("second\n");
-            print_ast(&ast[2]);
-            print_ast(if_node);
-        }
-
-        mu_assert(if_node->value_type != NULL);
-        AST sym = symbol(":void*");
-        mu_assert(ast_eq(if_node->value_type, &sym));
-    }
-
-    {
-        AST *if_node = &ast[2].list.elements[8].list.elements[2].list.elements[1];
-
-        if (do_print)
-        {
-            printf("\n\n\n\nlast\n");
-            print_ast(if_node);
-        }
-
-        mu_assert(if_node->value_type != NULL);
-        AST sym = list1(symbol(":char"));
-
-        mu_assert(ast_eq(if_node->value_type, &sym));
-    }
-
-    {
-        VajerEnv *env = standard_environment();
-        compile_to_file(env, code, "build/if.c");
-    }
 
     {
         VajerEnv *env = standard_environment();

@@ -17,69 +17,30 @@ typedef struct InferTypeState
 
 char *CURRENT_CODE = NULL;
 
+// this is where all structs are stored
+AST STRUCT_KEY = (AST){.ast_type = AST_SYMBOL, .symbol = "__structs"};
+
 void print_types(TypeKV *types)
 {
-    log("types with len %ld:\n", shlen(types));
+    prn("types with len %ld:\n", shlen(types));
+    int done_with_standard = 1;
     for (int i = 0; i < shlen(types); i++)
     {
-        prin_ast(types[i].key);
-        prn("\t");
-        print_ast(types[i].value);
-    }
-}
 
-int is_var(AST *e)
-{
-    return e->ast_type == AST_SYMBOL && e->symbol[0] == '?';
-}
-
-void add_type(TypeKV **types, AST *sym, AST *type)
-{
-    AST *existing_type = get_types(*types, sym);
-
-    if (existing_type)
-    {
-        log("type already in types!");
-        log("new type: ");
-        prin_ast(sym);
-        prn(" = ");
-        print_ast(type);
-        log("existing type: ");
-        print_ast(existing_type);
-        sai_assert(0);
-    }
-
-    // TODO: if I don't do this malloc, things break when exiting the stack
-    // (see `test_double_eval`)
-    // which hints that I accidentally put something stack allocated in `env`
-    // AST *lul = (AST *)malloc(sizeof AST);
-    //*lul = *sym;
-
-    hmput(*types, sym, type);
-}
-
-void replace_type(TypeKV **types, AST *sym, AST *type)
-{
-    if (!in_types(*types, sym))
-    {
-        log("type not in types!");
-        sai_assert(0);
-    }
-    else
-    {
-        log("replacing type for ");
-        print_ast(sym);
-    }
-
-    for (int i = hmlen(*types) - 1; i >= 0; i--)
-    {
-        if (ast_eq((*types)[i].key, sym))
+        if (!done_with_standard)
         {
-            hmdel(*types, (*types)[i].key);
+            if (ast_eq(types[i].key, &STRUCT_KEY))
+            {
+                done_with_standard = 1;
+            }
+        }
+        else
+        {
+            prin_ast(types[i].key);
+            prn("\t");
+            print_ast(types[i].value);
         }
     }
-
-    add_type(types, sym, type);
 }
 
 int line_no(char *code, int pos)
@@ -114,7 +75,7 @@ void print_source(char *code, AST *ast)
 
 void print_values(EnvKV *values)
 {
-    log("values with len %ld:\n", shlen(values));
+    prn("values with len %ld:\n", shlen(values));
     for (int i = 0; i < shlen(values); i++)
     {
         printf("%s", values[i].key);
@@ -195,9 +156,6 @@ AST *generics_to_specific(VajerEnv *env, AST *t)
     TypeKV *generic_types = NULL;
     return _generics_to_specific(env, t, &generic_types);
 }
-
-// this is where all structs are stored
-AST STRUCT_KEY = (AST){.ast_type = AST_SYMBOL, .symbol = "__structs"};
 
 // assigns type names for unknown types
 // assigns concrete types like :int for numbers, [:char] for string
@@ -483,11 +441,24 @@ Constraint *generate_constraints(VajerEnv *env, Constraint *constraints)
                 {
                     AST *ret_type = kv.value;
                     AST *f_type = list[0].value_type;
-                    AST f_call = (AST){.ast_type = AST_LIST};
+                    AST f_call = list0();
 
                     for (int i = 1; i < arrlen(list); i++)
                     {
-                        arrpush(f_call.list.elements, *get_types(env->types, &list[i]));
+                        AST *type = get_types(env->types, &list[i]);
+                        if (!type)
+                        {
+                            type = list[i].value_type;
+                        }
+                        if (!type)
+                        {
+                            log("no type for: ");
+                            print_ast(&list[i]);
+                            prn("\ninside\n");
+                            print_ast(e);
+                        }
+                        sai_assert(type);
+                        arrpush(f_call.list.elements, *type);
                     }
 
                     arrpush(f_call.list.elements, symbol("->"));
@@ -908,6 +879,7 @@ void ast_resolve_types(TypeKV **env, AST *ast)
             }
             else if (strcmp(ast->list.elements[0].symbol, "if") == 0)
             {
+                ast->list.elements[0].value_type = NULL;
                 AST *ret_type = ast->list.elements[2].value_type;
                 if (ret_type)
                     ast->value_type = ret_type;
@@ -916,6 +888,7 @@ void ast_resolve_types(TypeKV **env, AST *ast)
             }
             else if (strcmp(ast->list.elements[0].symbol, "do") == 0)
             {
+                ast->list.elements[0].value_type = NULL;
                 AST *ret_type = arrlast(ast->list.elements).value_type;
                 if (ret_type)
                     ast->value_type = ret_type;
@@ -937,6 +910,7 @@ void ast_resolve_types(TypeKV **env, AST *ast)
             }
             else if (strcmp(ast->list.elements[0].symbol, "defn") == 0)
             {
+                ast->list.elements[0].value_type = NULL;
                 AST *ret_type = ast->list.elements[1].value_type;
                 if (ret_type)
                     ast->value_type = ret_type;
@@ -985,7 +959,7 @@ void ast_resolve_types(TypeKV **env, AST *ast)
 
 void ast_resolve_types_all(VajerEnv *env, char *code, AST *ast)
 {
-    int do_print = 0;
+    int do_print = 1;
 
     if (get_types(env->types, &STRUCT_KEY) == 0)
     {
