@@ -154,18 +154,17 @@ char *get_in_scopes(Scope *scope, char *k)
 typedef struct ScopeState
 {
     Scope *scope;
-    int gensym;
 } ScopeState;
 
-char *scope_gensym(ScopeState *state, char *sym)
+char *scope_gensym(VajerEnv *env, char *sym)
 {
-    int len = snprintf(NULL, 0, "%d", state->gensym) + strlen(sym) + 10;
+    int len = snprintf(NULL, 0, "%d", env->scope_gensym) + strlen(sym) + 10;
     char *str = malloc(len * sizeof(char));
-    snprintf(str, len, "__SCOPE%d__%s", state->gensym, sym);
+    snprintf(str, len, "__SCOPE%d__%s", env->scope_gensym, sym);
     return str;
 }
 
-void _ast_add_scope(ScopeState *state, AST *ast)
+void _ast_add_scope(VajerEnv *env, ScopeState *state, AST *ast)
 {
     switch (ast->ast_type)
     {
@@ -185,18 +184,18 @@ void _ast_add_scope(ScopeState *state, AST *ast)
 
                 AST *args = elems[2].list.elements;
 
-                state->gensym++;
+                env->scope_gensym++;
 
                 for (int i = 0; i < arrlen(args); i++)
                 {
-                    shput(state->scope->kvs, args[i].symbol, scope_gensym(state, args[i].symbol));
+                    shput(state->scope->kvs, args[i].symbol, scope_gensym(env, args[i].symbol));
                 }
             }
         }
 
         for (int i = 0; i < arrlen(elems); i++)
         {
-            _ast_add_scope(state, &elems[i]);
+            _ast_add_scope(env, state, &elems[i]);
         }
 
         if (parent)
@@ -212,7 +211,7 @@ void _ast_add_scope(ScopeState *state, AST *ast)
 
         for (int i = 0; i < hmlen(kvs); i++)
         {
-            _ast_add_scope(state, &kvs[i].value);
+            _ast_add_scope(env, state, &kvs[i].value);
         }
         break;
     }
@@ -231,12 +230,12 @@ void _ast_add_scope(ScopeState *state, AST *ast)
     }
 }
 
-void ast_add_scopes(AST *ast)
+void ast_add_scopes(VajerEnv *env, AST *ast)
 {
     ScopeState state = {.scope = &(Scope){}};
     for (int i = 0; i < arrlen(ast); i++)
     {
-        _ast_add_scope(&state, &ast[i]);
+        _ast_add_scope(env, &state, &ast[i]);
     }
 }
 
@@ -387,7 +386,7 @@ AST *resolve_types(VajerEnv *env, AST *root_nodes, char *code)
 {
     int do_print = 0;
 
-    ast_add_scopes(root_nodes);
+    ast_add_scopes(env, root_nodes);
 
     if (do_print)
     {
@@ -547,8 +546,6 @@ void eval_ast(VajerEnv *env, AST *ast)
 {
     int do_print = 0;
 
-    log("\n\e[33m>>> eval ast\e[0m\n");
-
     if (do_print)
     {
         log("\n\e[33m>>> eval ast\e[0m\n");
@@ -576,7 +573,7 @@ void eval_ast(VajerEnv *env, AST *ast)
 
     CCompilationState *res = c_compile_all(c_ast(env, env->forms_to_compile));
 
-    arrfree(env->forms_to_compile);
+    env->forms_to_compile = NULL;
     // CCompilationState *res = compile_ast_to_file(ast, "build/evaled.c");
 
     TCCState *s = tcc_new();
@@ -745,8 +742,8 @@ void resolve_types_eval_ast(VajerEnv *env, AST *ast)
 
 void eval(VajerEnv *env, char *code)
 {
-    log("evaling\n");
-    eval_ast(env, vajer_ast(env, code));
+    AST *ast = vajer_ast(env, code);
+    eval_ast(env, ast);
 }
 
 AST *eval_macro(EnvKV *cenv, VajerEnv *env, AST *ast, char *symname, AST *args)

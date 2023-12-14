@@ -260,3 +260,11 @@ I guess for now, just keep hitting M-t and try to understand what's going on.
 ---
 
 Now I get an error which seems to be caused by putting stack-allocated variables into my VajerEnv. WIP in `add_type`, see the TODO there.
+
+Fixed it! I just shouldn't free `env->forms_to_compile`. 8) Apparently things are stored there, not just references to things.
+
+This should obviously be fixed better later, by putting all ast in a good place (like VajerEnv.values).
+
+Now all tests work except for `lisp/sdl-test-structs.lisp`. It seems to not figure out types for `in` calls sometimes. Not sure why. Possibly related to the use of structs, but unclear.
+
+Okay, so, I have this weird bug in `lisp/sdl-test-structs.lisp`, but it's such a big file so it's annoying to look at. I'm gonna try to provoke the type checker a bit by making `eval` not run `vajer_ast` (etc) on all forms at once, but instead run it one form at a time.

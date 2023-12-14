@@ -378,7 +378,7 @@ MU_TEST(test_add_type_declare)
 
 MU_TEST(test_add_type_list)
 {
-    char *code = slurp("lisp/list.lisp");
+    char *code = slurp("lisp/in_str.lisp");
     VajerEnv *env = standard_environment();
     AST *ast = c_ast(env, vajer_ast(env, code));
 

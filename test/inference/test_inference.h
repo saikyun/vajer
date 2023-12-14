@@ -69,7 +69,6 @@ MU_TEST(test_basic_unification)
         AST plus = list3(symbol("+"), symbol(":int"), symbol(":int"));
         AST call = symbol("?t");
         int res = unify(&call, &plus, &env);
-        // print_env(env);
         mu_assert(res);
         AST plus2 = list3(symbol("+"), symbol("?x"), symbol("?y"));
         AST call2 = symbol("?t2");
@@ -168,7 +167,6 @@ MU_TEST(test_basic_inference)
             int res = unify(&constraints[i].left, &constraints[i].right, &types);
             mu_assert(res);
         }
-        // print_env(env);
     }
 
     {
@@ -178,11 +176,9 @@ MU_TEST(test_basic_inference)
 
         VajerEnv env = (VajerEnv){};
         ast_resolve_types_all(&env, code, root_nodes);
-        // print_env(env);
 
         AST *x = &root_nodes[0].list.elements[2].list.elements[0];
         AST new_type;
-        // print_ast(x);
         new_type = *resolve_type(&env.types, x->value_type);
         x->value_type = &new_type;
         AST intsym = symbol(":int");

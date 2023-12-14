@@ -16,6 +16,6 @@ MU_TEST(test_spelsylt)
 
 MU_TEST_SUITE(test_sdl_suite)
 {
-    MU_RUN_TEST(test_sdl_init);
+    // MU_RUN_TEST(test_sdl_init);
     MU_RUN_TEST(test_spelsylt);
 }

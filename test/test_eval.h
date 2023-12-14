@@ -4,8 +4,6 @@ MU_TEST(test_double_eval)
 {
   VajerEnv *env = standard_environment();
   eval(env, "(defn inc [x] (+ x 1))");
-  log("after first eval\n");
-  print_env(env);
   eval(env, "(defn main [] (printf \"(inc 5) #=> %d\n\" (inc 5)))");
   //    eval(env, "(printf \"(inc 5) #=> %d\n\" (inc 5))");
 }

@@ -387,6 +387,7 @@ typedef struct VajerEnv
     TypeKV *types;
     EnvKV *values;
     int gensym;
+    int scope_gensym;
 
     AST *forms_to_compile;
 

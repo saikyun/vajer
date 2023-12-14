@@ -49,18 +49,13 @@ void add_type(TypeKV **types, AST *sym, AST *type)
         sai_assert(0);
     }
 
-    log("\n\n\e[35m>>> lul\e[0m\n");
-    print_ast(sym);
-    print_ast(type);
-    print_types(*types);
-
     // TODO: if I don't do this malloc, things break when exiting the stack
     // (see `test_double_eval`)
     // which hints that I accidentally put something stack allocated in `env`
-    AST *lul = (AST *)malloc(sizeof AST);
-    *lul = *sym;
+    // AST *lul = (AST *)malloc(sizeof AST);
+    //*lul = *sym;
 
-    hmput(*types, lul, type);
+    hmput(*types, sym, type);
 }
 
 void replace_type(TypeKV **types, AST *sym, AST *type)
