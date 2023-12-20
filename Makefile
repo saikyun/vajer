@@ -14,6 +14,7 @@ test: FORCE
 # experiment
 #	./lib/tinycc/tcc -bt10 -DCOMPILED_WITH_TCC $(INCLUDES) -I. $(LIBS) $(CFLAGS) -run experiments/prototype.c
 # standard one
+	rm -f build/eval/*
 	./lib/tinycc/tcc -bt10 -DCOMPILED_WITH_TCC $(INCLUDES) -I. $(LIBS) $(CFLAGS) -run test/test.c -Wall
 #	./lib/tinycc/tcc $(INCLUDES) -I. $(LIBS) $(CFLAGS) test/test.c -o build/test
 

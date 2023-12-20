@@ -281,3 +281,27 @@ Made `clone`, it fixed the issue (though I've only used it on `if`, probably nee
 Now I've ended up with a new, interesting error. Namely that C doesn't recognize structs that I haven't included. So I need to put things from the `__structs` key in types into each file. Preferably I'd only insert the structs that are used by the form, but for now this will do.
 
 Next step could be adding a function which takes a struct type and returns the C code needed to define it. I could probably look at `c_compile_defstruct`. :)
+
+- [x] Make `struct_type_to_string`
+
+Okay, that stuff works now.
+
+I solved some problems regarding type inference with vars.
+
+Now I'm a bit stuck again, seems there are problems with top level vars (in spelsylt.lisp, and made a smaller one called `top_level_var.lisp`). The type information doesn't seem to be resolved... Aha, top level vars gets a `__SCOPE...` which they maybe shouldn't.
+
+Hm, I've punted on using c defined structs for too long. Now I must face my punishment. I could probably make a `declare-struct` for now.
+
+- [x] Add `declare-struct` which works like `defstruct` but doesn't generate any code, only adds type information
+
+Okay, that stuff seems to work pretty well.
+
+Now I get segfault when trying to run `spelsylt.lisp`. One problem that makes debugging harder is that I "can't" compile things to a single file and compile that with clang. But now that I think about it, maybe I can just compile all eval-files?
+
+Eyy, it works! I shouldn't put `NULL` into non-pointers. :P I managed to run clang with:
+
+```
+clang -g -D_THREAD_SAFE -Werror -Wno-deprecated-declarations -Ilib -I/usr/local/include/SDL2 -I/usrc/local/include/SDL2_ttf -I. -Isrc -Llib/tinycc -ltcc -L/usr/local/lib -lSDL2 -DSTACKTRACE_ON build/eval/*.c -o build/test
+```
+
+Pretty neat!

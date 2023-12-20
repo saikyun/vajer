@@ -2,7 +2,6 @@
 (var dead 0)
 
 (declare SDL_RenderPresent [:SDL_Renderer* -> :void])
-(declare sizeof [?T -> :int])
 (declare SDL_SetRenderDrawColor [:SDL_Renderer* :int :int :int :int -> :void])
 (declare SDL_RenderClear [:SDL_Renderer* -> :void])
 (declare SDL_Quit [-> :void])

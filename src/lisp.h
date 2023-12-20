@@ -382,6 +382,25 @@ typedef struct EnvKV
     EnvEntry value;
 } EnvKV;
 
+typedef struct ScopeKV
+{
+    char *key;
+    char *value;
+} ScopeKV;
+
+typedef struct NameSet
+{
+    char *key;
+    char value;
+} NameSet;
+
+typedef struct Scope
+{
+    ScopeKV *kvs;
+    struct Scope *children;
+    struct Scope *parent;
+} Scope;
+
 typedef struct VajerEnv
 {
     TypeKV *types;
@@ -389,8 +408,12 @@ typedef struct VajerEnv
     int gensym;
     int scope_gensym;
 
+    NameSet *declarations;
+
     AST *forms_to_compile;
     AST *forms_with_unresolved_types;
+
+    Scope global_scope;
 
     // TODO: not sure if this should be separate, probably should be in types or values
     TypeKV *macros;
@@ -864,12 +887,12 @@ void add_type(TypeKV **types, AST *sym, AST *type)
 
     if (existing_type)
     {
-        log("type already in types!");
-        log("new type: ");
+        log("type already in types!\n");
+        prn("new type: ");
         prin_ast(sym);
         prn(" = ");
         print_ast(type);
-        log("existing type: ");
+        prn("existing type: ");
         print_ast(existing_type);
         sai_assert(0);
     }
@@ -913,6 +936,18 @@ void replace_type(TypeKV **types, AST *sym, AST *type)
     remove_type(types, sym);
 
     add_type(types, sym, type);
+}
+
+void add_or_replace_type(TypeKV **types, AST *sym, AST *type)
+{
+    if (in_types(*types, sym))
+    {
+        replace_type(types, sym, type);
+    }
+    else
+    {
+        add_type(types, sym, type);
+    }
 }
 
 AST list0()
@@ -984,17 +1019,17 @@ AST symbol(char *sym)
     return (AST){.ast_type = AST_SYMBOL, .symbol = sym};
 }
 
-AST with_type(AST node, AST *type)
-{
-    node.value_type = type;
-    return node;
-}
-
 AST *new_symbol(char *sym)
 {
     AST *s = (AST *)malloc(sizeof(AST));
     *s = symbol(sym);
     return s;
+}
+
+AST with_type(AST node, AST *type)
+{
+    node.value_type = type;
+    return node;
 }
 
 AST ast_string(char *str)
@@ -1460,6 +1495,8 @@ SymAST transform_var(VajerEnv *env, AST *node)
                 list2(symbol("var"), with_type(symbol(value.sym), value.ast.value_type)),
                 value.ast,
                 *node);
+
+            add_or_replace_type(&env->types, new_symbol(value.sym), value.ast.value_type);
             upscope.value_type = &value_type_void;
             upscope.no_semicolon = 1;
             return (SymAST){.sym = NULL, .ast = upscope};
@@ -1709,6 +1746,18 @@ SymAST transform_list(VajerEnv *env, AST *node)
         {
             return (SymAST){.sym = NULL, .ast = *node};
         }
+        else if (strcmp(head.symbol, "declare-struct") == 0)
+        {
+            return (SymAST){.sym = NULL, .ast = *node};
+        }
+        else if (strcmp(head.symbol, "ref") == 0)
+        {
+            return (SymAST){.sym = NULL, .ast = *node};
+        }
+        else if (strcmp(head.symbol, "cast") == 0)
+        {
+            return (SymAST){.sym = NULL, .ast = *node};
+        }
         else if (strcmp(head.symbol, "defn") == 0)
         {
             return transform_defn(env, node);
@@ -1823,8 +1872,8 @@ AST *c_transform_all(VajerEnv *env, AST *from)
         }
         else
         {
-            log("is not unresolved");
-            print_ast(&from[i]);
+            // log("is not unresolved");
+            // print_ast(&from[i]);
             SymAST node = transform(env, &from[i]);
             arrpush(to, node.ast);
         }
@@ -1965,6 +2014,13 @@ void c_compile_get(CCompilationState *state, AST node)
     // string(&state->source, ")");
 }
 
+void c_compile_ref(CCompilationState *state, AST node)
+{
+    string(&state->source, "&");
+    c_compile(state, node.list.elements[1]);
+    // string(&state->source, ")");
+}
+
 void c_compile_insert(CCompilationState *state, AST node)
 {
     c_compile(state, node.list.elements[1]);
@@ -1972,6 +2028,30 @@ void c_compile_insert(CCompilationState *state, AST node)
     c_compile(state, node.list.elements[2]);
     strstr(&state->source, " = ");
     c_compile(state, node.list.elements[3]);
+}
+
+int struct_type_to_string(String *str, char *name, AST *type)
+{
+    string(str, "typedef struct ");
+    string(str, name);
+    string(str, " {\n");
+
+    sai_assert(type->ast_type == AST_MAP);
+    AstKV *map = type->map.kvs;
+
+    for (int i = 0; i < hmlen(map); i++)
+    {
+        string(str, "  ");
+        sai_assert(type_to_string(str, map[i].value));
+        string(str, " ");
+        string(str, map[i].key.symbol);
+        string(str, ";\n");
+    }
+
+    string(str, "} ");
+    string(str, name);
+
+    return 1;
 }
 
 void c_compile_defstruct(CCompilationState *state, AST node)
@@ -2156,6 +2236,13 @@ void c_compile_var(CCompilationState *state, AST node)
             c_compile(state, node.list.elements[2]);
         }
     }
+
+    // only add top level things
+    // TODO: maybe check top level in a better way
+    if (state->indent == 0)
+    {
+        shput(state->env, sym.symbol, ((EnvEntry){.cvalue = NULL, .ast = node, .symbol = &node.list.elements[1]}));
+    }
 }
 
 void c_compile_declare_var(CCompilationState *state, AST node)
@@ -2169,6 +2256,11 @@ void c_compile_declare_var(CCompilationState *state, AST node)
     sai_assert(c_compile_type(state, type));
 
     strstr(&state->source, " ", sym.symbol);
+
+    if (state->indent == 0)
+    {
+        shput(state->env, sym.symbol, ((EnvEntry){.cvalue = NULL, .ast = node, .symbol = &node.list.elements[1]}));
+    }
 }
 
 void c_compile_set(CCompilationState *state, AST node)
@@ -2233,6 +2325,10 @@ void c_compile_list(CCompilationState *state, AST node)
         {
             return c_compile_get(state, node);
         }
+        else if (strcmp(head.symbol, "ref") == 0)
+        {
+            return c_compile_ref(state, node);
+        }
         else if (strcmp(head.symbol, ":=") == 0)
         {
             return c_compile_insert(state, node);
@@ -2251,7 +2347,12 @@ void c_compile_list(CCompilationState *state, AST node)
         }
         else if (strcmp(head.symbol, "defstruct") == 0)
         {
-            return c_compile_defstruct(state, node);
+            // return c_compile_defstruct(state, node);
+            return;
+        }
+        else if (strcmp(head.symbol, "declare-struct") == 0)
+        {
+            return;
         }
         else if (strcmp(head.symbol, "upscope") == 0)
         {

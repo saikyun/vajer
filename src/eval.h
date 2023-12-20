@@ -29,6 +29,11 @@ VajerEnv *standard_environment()
         *type = list4(symbol("?T"), symbol("?T"), symbol("->"), symbol(":int"));
         hmput(types, new_symbol("=="), type);
     }
+    {
+        AST *type = (AST *)malloc(sizeof(AST));
+        *type = list3(symbol("?T"), symbol("->"), list1(symbol("?T")));
+        hmput(types, new_symbol("ref"), type);
+    }
     /*
     {
         AST *type = (AST *)malloc(sizeof(AST));
@@ -131,6 +136,11 @@ VajerEnv *standard_environment()
         *type = list4(symbol("?T"), symbol("?T"), symbol("->"), value_type_void);
         hmput(types, new_symbol("defstruct"), type);
     }
+    {
+        AST *type = (AST *)malloc(sizeof(AST));
+        *type = list4(symbol("?T"), symbol("?T"), symbol("->"), value_type_void);
+        hmput(types, new_symbol("declare-struct"), type);
+    }
 
     {
         AST *type = (AST *)malloc(sizeof(AST));
@@ -142,6 +152,7 @@ VajerEnv *standard_environment()
     env->types = types;
     env->values = NULL;
     env->gensym = 0;
+    env->global_scope = (Scope){};
 
     return env;
 }
@@ -150,19 +161,6 @@ VajerEnv *standard_environment()
 //
 //
 //
-
-typedef struct ScopeKV
-{
-    char *key;
-    char *value;
-} ScopeKV;
-
-typedef struct Scope
-{
-    ScopeKV *kvs;
-    struct Scope *children;
-    struct Scope *parent;
-} Scope;
 
 char *get_in_scopes(Scope *scope, char *k)
 {
@@ -211,8 +209,27 @@ void _ast_add_scope(VajerEnv *env, ScopeState *state, AST *ast)
 
                 for (int i = 0; i < arrlen(args); i++)
                 {
-                    shput(state->scope->kvs, args[i].symbol, scope_gensym(env, args[i].symbol));
+                    if (strncmp(args[i].symbol, "__SCOPE", 7) != 0)
+                    {
+                        shput(state->scope->kvs, args[i].symbol, scope_gensym(env, args[i].symbol));
+                    }
                 }
+            }
+            // if state->scope is null, we are in
+            else if (elems[0].ast_type == AST_SYMBOL && strcmp(elems[0].symbol, "var") == 0)
+            {
+                // use the scope for the potential variable
+                _ast_add_scope(env, state, &elems[2]);
+
+                env->scope_gensym++;
+                if (strncmp(elems[1].symbol, "__SCOPE", 7) != 0)
+                {
+                    shput(state->scope->kvs, elems[1].symbol, scope_gensym(env, elems[1].symbol));
+                }
+
+                // add scope to the new variable name
+                _ast_add_scope(env, state, &elems[1]);
+                break;
             }
         }
 
@@ -255,7 +272,7 @@ void _ast_add_scope(VajerEnv *env, ScopeState *state, AST *ast)
 
 void ast_add_scopes(VajerEnv *env, AST *ast)
 {
-    ScopeState state = {.scope = &(Scope){}};
+    ScopeState state = {.scope = &env->global_scope};
     for (int i = 0; i < arrlen(ast); i++)
     {
         _ast_add_scope(env, &state, &ast[i]);
@@ -271,8 +288,6 @@ void defmacro(VajerEnv *env, AST *ast)
 
     // eval_ast(ast);
 }
-
-AST *eval_macro(EnvKV *cenv, VajerEnv *env, AST *ast, char *symname, AST *args);
 
 void resolve_types_eval_ast(VajerEnv *env, AST *ast);
 
@@ -407,7 +422,7 @@ void ast_eval_macros(VajerEnv *env, AST *ast)
 
 AST *resolve_types(VajerEnv *env, AST *root_nodes, char *code)
 {
-    int do_print = 1;
+    int do_print = 0;
 
     ast_add_scopes(env, root_nodes);
 
@@ -567,7 +582,7 @@ CCompilationState *compile_ast_to_file(VajerEnv *env, AST *ast123, char *path)
 
 void eval_ast(VajerEnv *env)
 {
-    int do_print = 1;
+    int do_print = 0;
 
     if (do_print)
     {
@@ -633,9 +648,36 @@ void eval_ast(VajerEnv *env)
         prn("\n\e[35m>>> pre-existing symbols\e[0m\n");
     }
 
+    AstKV *structs = hmget(env->types, &STRUCT_KEY)->map.kvs;
+
+    if (structs)
+    {
+        for (int i = 0; i < hmlen(structs); i++)
+        {
+            char *name = structs[i].key.symbol;
+            if (shget(env->declarations, name))
+            {
+                continue;
+            }
+            AST *kvs = &structs[i].value;
+            struct_type_to_string(&str, name + 1, kvs);
+            strstr(&str, ";\n\n");
+        }
+    }
+
     for (int i = 0; i < shlen(env->values); i++)
     {
         AST *type = get_types(env->types, env->values[i].value.symbol);
+
+        // TODO: maybe it's okay for some types to not be in env->types?
+        // comment next three lines and it will fail
+        // on gensym things added by compiler
+
+        if (!type)
+        {
+            type = env->values[i].value.symbol->value_type;
+        }
+
         if (do_print)
         {
             prn("+ %s\t", env->values[i].key);
@@ -645,30 +687,34 @@ void eval_ast(VajerEnv *env)
         // TODO: not sure this should be needed, feels like `get_types` should already return this :o
         type = resolve_type(&env->types, type);
 
-        if (type->ast_type != AST_LIST)
+        if (type->ast_type == AST_LIST && arrlen(type->list.elements) > 1)
         {
-            log("\e[31mwhat should be a function type is not:\e[0m ");
             print_ast(type);
-            sai_assert(0);
-        }
+            // function declaration
+            sai_assert(type_to_string(&str, arrlast(type->list.elements)) != 0);
 
-        sai_assert(type_to_string(&str, arrlast(type->list.elements)) != 0);
+            strstr(&str, " ", env->values[i].key, "(");
+            // type_to_string(&str, cenv[i].value.type);
 
-        strstr(&str, " ", env->values[i].key, "(");
-        // type_to_string(&str, cenv[i].value.type);
-
-        // ignore -> and return type
-        for (int i = 0; i < arrlen(type->list.elements) - 2; i++)
-        {
-            sai_assert(type_to_string(&str, type->list.elements[i]));
-
-            if (i != arrlen(type->list.elements) - 3)
+            // ignore -> and return type
+            for (int i = 0; i < arrlen(type->list.elements) - 2; i++)
             {
-                string(&str, ", ");
-            }
-        }
+                sai_assert(type_to_string(&str, type->list.elements[i]));
 
-        strstr(&str, ");\n");
+                if (i != arrlen(type->list.elements) - 3)
+                {
+                    string(&str, ", ");
+                }
+            }
+
+            strstr(&str, ");\n");
+        }
+        else
+        {
+            // var
+            type_to_string(&str, *type);
+            strstr(&str, " ", env->values[i].key, ";\n");
+        }
 
         if (shgeti(res->env, env->values[i].key) == -1)
         {
@@ -681,7 +727,7 @@ void eval_ast(VajerEnv *env)
     }
 
     String pathstr = (String){};
-    strstr(&pathstr, "build/eval_ast", gentype(env), ".c");
+    strstr(&pathstr, "build/eval/eval_ast", gentype(env), ".c");
 
     char *path = pathstr.str; // "build/eval_ast.c";
 
@@ -718,7 +764,13 @@ void eval_ast(VajerEnv *env)
     sai_assert(tcc_add_file(s, path) != -1);
 
     int size = tcc_relocate(s, NULL);
-    sai_assert(size != -1);
+
+    if (size == -1)
+    {
+        printf("\e[31mfailed compiling: %s\e[0m", path);
+        printf("\nother code:\n%s", str.str);
+        sai_assert(0);
+    }
 
     void *ptr = malloc(size);
 
@@ -843,29 +895,4 @@ void real_eval(VajerEnv *env, char *code)
 {
     vajer_ast(env, code);
     eval_ast(env);
-}
-
-AST *eval_macro(EnvKV *cenv, VajerEnv *env, AST *ast, char *symname, AST *args)
-{
-    TCCState *s = tcc_new();
-
-    CCompilationState *cres = c_compile_all(c_ast(env, resolve_types(env, ast, "")));
-
-    int res = tcc_compile_string(s, cres->source.str);
-    if (res != 0)
-    {
-        log("compilation failed, source:\n");
-        prn("%s", cres->source.str);
-        sai_assert(0);
-    }
-
-    /* relocate the code */
-    if (tcc_relocate(s, TCC_RELOCATE_AUTO) < 0)
-        return NULL;
-
-    // sai_assert(tcc_run(s, 0, NULL) == 0);
-    AST *(*f)(AST *args) = tcc_get_symbol(s, symname);
-    printf("symname: %s, SYM? %p\n", symname, f);
-
-    return f(args);
 }

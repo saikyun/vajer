@@ -253,16 +253,34 @@ MU_TEST(test_infer_defn_void)
     eval(env, slurp("test/inference/defn-void.lisp"));
 }
 
+MU_TEST(test_infer_top_level_var)
+{
+    VajerEnv *env = standard_environment();
+    eval(env, slurp("test/inference/top_level_var.lisp"));
+}
+
 MU_TEST(test_infer_same_symbol)
 {
     VajerEnv *env = standard_environment();
     eval(env, slurp("test/inference/same-symbol.lisp"));
 }
 
+MU_TEST(test_infer_same_symbol_in_defn)
+{
+    VajerEnv *env = standard_environment();
+    eval(env, slurp("test/inference/same_symbol_in_defn.lisp"));
+}
+
 MU_TEST(test_infer_struct)
 {
     VajerEnv *env = standard_environment();
     eval(env, slurp("test/inference/struct.lisp"));
+}
+
+MU_TEST(test_infer_struct_with_function)
+{
+    VajerEnv *env = standard_environment();
+    eval(env, slurp("test/inference/struct-with-function.lisp"));
 }
 
 MU_TEST(test_infer_bigger_struct)
@@ -303,9 +321,15 @@ MU_TEST_SUITE(test_suite_inference)
 
     MU_RUN_TEST(test_infer_defn_void);
 
+    MU_RUN_TEST(test_infer_top_level_var);
+
     MU_RUN_TEST(test_infer_same_symbol);
 
+    MU_RUN_TEST(test_infer_same_symbol_in_defn);
+
     MU_RUN_TEST(test_infer_struct);
+
+    MU_RUN_TEST(test_infer_struct_with_function);
 
     MU_RUN_TEST(test_infer_bigger_struct);
 

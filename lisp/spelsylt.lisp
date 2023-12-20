@@ -1,5 +1,4 @@
 (declare SDL_RenderPresent [:SDL_Renderer* -> :void])
-(declare sizeof [?T -> :int])
 (declare SDL_SetRenderDrawColor [:SDL_Renderer* :int :int :int :int -> :void])
 (declare SDL_RenderClear [:SDL_Renderer* -> :void])
 (declare SDL_Quit [-> :void])
@@ -12,7 +11,7 @@
 (declare time [:int -> :int])
 (declare rand [-> :int])
 (declare SDL_Init [:int -> :int])
-(declare SDL_PollEvent [:SDL_Event* -> :int])
+(declare SDL_PollEvent [[:SDL_Event] -> :int])
 (declare SDL_RenderDrawPoint [:SDL_Renderer* :int :int -> :void])
 (declare SDL_RenderSetScale [:SDL_Renderer* :int :int -> :void])
 (declare SDL_GetTicks [-> :int])
@@ -99,28 +98,28 @@
 
 (var quit 0)
 
+(declare-struct SDL_Event {type :int, key.keysym.scancode :int})
+
 (defn main_loop
   []
-
-  (declare e :SDL_Event)
-  (var e NULL)
-  (var res (SDL_PollEvent &e))
+  (var e (cast :SDL_Event {}))
+  (var res (SDL_PollEvent (ref e)))
   (if (!= 0 res)
     (do
-      (if (== e.type SDL_QUIT)
+      (if (== (get e type) SDL_QUIT)
         (set quit 1))
 
-      (if (== e.type SDL_KEYDOWN)
+      (if (== (get e type) SDL_KEYDOWN)
         (do
-          (if (== e.key.keysym.scancode SDL_SCANCODE_W)
+          (if (== (get e key.keysym.scancode) SDL_SCANCODE_W)
             (do (set cursor_y (- cursor_y 1)) 0))
-          (if (== e.key.keysym.scancode SDL_SCANCODE_S)
+          (if (== (get e key.keysym.scancode) SDL_SCANCODE_S)
             (do (set cursor_y (+ cursor_y 1)) 0))
-          (if (== e.key.keysym.scancode SDL_SCANCODE_A)
+          (if (== (get e key.keysym.scancode) SDL_SCANCODE_A)
             (do (set cursor_x (- cursor_x 1)) 0))
-          (if (== e.key.keysym.scancode SDL_SCANCODE_D)
+          (if (== (get e key.keysym.scancode) SDL_SCANCODE_D)
             (do (set cursor_x (+ cursor_x 1)) 0))
-          (if (== e.key.keysym.scancode SDL_SCANCODE_SPACE)
+          (if (== (get e key.keysym.scancode) SDL_SCANCODE_SPACE)
             (do (spawn data width cursor_x cursor_y) 0))
           0))))
 

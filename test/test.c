@@ -44,11 +44,7 @@ int main(int argc, char **argv)
 
     if (single)
     {
-        // MU_RUN_SUITE(test_eval);
-        //         MU_RUN_TEST(test_infer_in);
-        MU_RUN_TEST(test_compile_defn);
-        // MU_RUN_SUITE(test_macro);
-        // MU_RUN_SUITE(test_eval);
+        MU_RUN_TEST(test_spelsylt);
     }
     else
     {

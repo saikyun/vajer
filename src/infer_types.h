@@ -200,7 +200,7 @@ void assign_type_names(VajerEnv *env, AST *e)
             list[1].value_type = type;
             add_type(&env->types, &list[1], type);
         }
-        else if (arrlen(list) > 0 && list[0].ast_type == AST_SYMBOL && strcmp(list[0].symbol, "defstruct") == 0)
+        else if (arrlen(list) > 0 && list[0].ast_type == AST_SYMBOL && (strcmp(list[0].symbol, "defstruct") == 0 || strcmp(list[0].symbol, "declare-struct") == 0))
         {
             AST *name = &list[1];
             AST *map = &list[2];
@@ -211,6 +211,11 @@ void assign_type_names(VajerEnv *env, AST *e)
             strstr(&new_name, ":", name->symbol);
 
             AST *new_name_ast = new_symbol(new_name.str);
+
+            if (strcmp(list[0].symbol, "declare-struct") == 0)
+            {
+                shput(env->declarations, new_name_ast->symbol, '1');
+            }
 
             AST *structs = hmget(env->types, &STRUCT_KEY);
 
@@ -265,7 +270,7 @@ void assign_type_names(VajerEnv *env, AST *e)
                 }
             }
 
-            add_type(&env->types, e, type);
+            add_or_replace_type(&env->types, e, type);
         }
         else
         {
@@ -291,8 +296,12 @@ void assign_type_names(VajerEnv *env, AST *e)
             assign_type_names(env, &e->map.kvs[i].value);
         }
 
-        e->value_type = new_map(map1(e->map.kvs[0].key, *e->map.kvs[0].value.value_type));
-        add_type(&env->types, e, e->value_type);
+        if (!e->value_type)
+        {
+            e->value_type = new_map(map1(e->map.kvs[0].key, *e->map.kvs[0].value.value_type));
+        }
+
+        add_or_replace_type(&env->types, e, e->value_type);
 
         break;
     }
@@ -774,30 +783,53 @@ AST *resolve_type(TypeKV **env, AST *type)
         AstKV *structs = hmget(*env, &STRUCT_KEY)->map.kvs;
         for (int i = 0; i < hmlen(structs); i++)
         {
+            int match = 1;
+
             AstKV *structer = structs[i].value.map.kvs;
             for (int j = 0; j < hmlen(substruct); j++)
             {
+                log("comparing structs\n");
+                print_ast(&substruct[j].key);
+                prin_ast(&substruct[j].value);
+                log(" = ");
+                print_ast(&structs[i].key);
+                print_ast(&structs[i].value);
+
                 AST k = substruct[j].key;
 
-                int res = unify(&substruct[j].value, get_in_map(structer, &k), env);
+                AST *found = get_in_map(structer, &k);
 
-                if (res == 0)
+                if (!found)
                 {
-                    log("failed unify :(\n");
-                    sai_assert(0);
+                    log("did not find keys in both lol\n");
+                    match = 0;
+                    break;
+                }
+                else
+                {
+                    int res = unify(&substruct[j].value, found, env);
+
+                    if (res == 0)
+                    {
+                        log("failed unify :(\n");
+                        sai_assert(0);
+                    }
                 }
             }
 
-            if (matching_struct)
+            if (match)
             {
-                log(" >>>>>>> MULTIPLE MATCHING STRUCTS <<<<<<<<<<<<<<< : ");
-                prin_ast(matching_struct);
-                log(" = ");
-                print_ast(&structs[i].key);
-                sai_assert(0);
-            }
+                if (matching_struct)
+                {
+                    log(" >>>>>>> MULTIPLE MATCHING STRUCTS <<<<<<<<<<<<<<< : ");
+                    prin_ast(matching_struct);
+                    log(" = ");
+                    print_ast(&structs[i].key);
+                    sai_assert(0);
+                }
 
-            matching_struct = &structs[i].key;
+                matching_struct = &structs[i].key;
+            }
         }
 
         if (matching_struct)
@@ -897,6 +929,8 @@ void ast_resolve_types(TypeKV **env, AST *ast)
             }
             else if (strcmp(ast->list.elements[0].symbol, "get") == 0)
             {
+                ast->list.elements[0].value_type = NULL;
+                ast->list.elements[2].value_type = &value_type_symbol;
                 sai_assert(ast->value_type);
             }
             else if (strcmp(ast->list.elements[0].symbol, "cast") == 0)
@@ -911,6 +945,7 @@ void ast_resolve_types(TypeKV **env, AST *ast)
             else if (strcmp(ast->list.elements[0].symbol, "defn") == 0)
             {
                 ast->list.elements[0].value_type = NULL;
+                ast->list.elements[2].value_type = NULL;
                 AST *ret_type = ast->list.elements[1].value_type;
                 if (ret_type)
                     ast->value_type = ret_type;
@@ -924,6 +959,9 @@ void ast_resolve_types(TypeKV **env, AST *ast)
             {
             }
             else if (strcmp(ast->list.elements[0].symbol, "defstruct") == 0)
+            {
+            }
+            else if (strcmp(ast->list.elements[0].symbol, "declare-struct") == 0)
             {
             }
             else
@@ -959,7 +997,7 @@ void ast_resolve_types(TypeKV **env, AST *ast)
 
 void ast_resolve_types_all(VajerEnv *env, char *code, AST *ast)
 {
-    int do_print = 1;
+    int do_print = 0;
 
     if (get_types(env->types, &STRUCT_KEY) == 0)
     {
