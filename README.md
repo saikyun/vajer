@@ -6,6 +6,7 @@ Tokenize lisp.
 
 ```
 git clone --recursive https://github.com/saikyun/vajer
+cd vajer
 cd lib/tinycc
 ./configure --config-codesign
 make
